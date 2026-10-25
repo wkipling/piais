@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+
 from piais.config import Config
 from piais.service import AisService
 
@@ -62,3 +65,34 @@ def test_assembler_ignores_non_ais_lines() -> None:
     assert sent == []
     assert service.sentences == 1
     assert service.decoded == 0
+
+
+def test_type24_parts_are_rate_limited_independently() -> None:
+    """24A (name) and 24B (dimensions) are separate messages; one must not
+    suppress the other for the whole static interval."""
+    service, sent = make_service()
+    service.feed_sentence(AIVDM["type24A"])
+    service.feed_sentence(AIVDM["type24B"])
+    assert [pgn for pgn, _ in sent] == [129809, 129810]
+    assert service.suppressed == 0
+
+
+def test_send_failure_is_logged(caplog) -> None:
+    """A failed encode or bus write must not disappear into a bare task."""
+
+    class Boom:
+        async def send(self, message) -> None:
+            raise ValueError("boom")
+
+        def log_frames(self, message) -> None:
+            raise AssertionError("log_frames used outside bench mode")
+
+    service = AisService(Config(), Boom())  # type: ignore[arg-type]
+
+    async def go() -> None:
+        service._send(SimpleNamespace(PGN=129038), 244009864)
+        await asyncio.sleep(0.01)
+
+    with caplog.at_level("ERROR", logger="piais"):
+        asyncio.run(go())
+    assert "N2K send failed" in caplog.text

@@ -30,7 +30,12 @@ AIVDM = {
 
 
 def round_trip(message: NMEA2000Message) -> tuple[int, NMEA2000Message]:
-    """Encode with canboat, frame it for CAN, reassemble and decode."""
+    """Encode with canboat, frame it for CAN, reassemble and decode.
+
+    Both sides use SI units: the encoder is the one the daemon uses, and the
+    decoder must interpret the same quantity system or canboat's native-unit
+    table would rescale fields that differ between unit systems.
+    """
     frames = create_encoder(N2KFormat.PYTHON_CAN, units="si").encode(message)
     reassembler = Reassembler()
     payload: bytes | None = None
@@ -39,7 +44,7 @@ def round_trip(message: NMEA2000Message) -> tuple[int, NMEA2000Message]:
         priority, pgn, src, dst = can_id_decompose(frame.arbitration_id)
         payload = reassembler.push(pgn, bytes(frame.data), src, dst, priority)
     assert payload is not None, "no complete PGN was produced"
-    return pgn, backend.decode(pgn, payload)
+    return pgn, backend.decode(pgn, payload, units="si")
 
 
 def field(message: NMEA2000Message, field_id: str):

@@ -38,7 +38,13 @@ class AisProtocol(asyncio.DatagramProtocol):
 
 
 class AisService:
-    def __init__(self, config: Config, sender: N2KSender | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        sender: N2KSender | None = None,
+        *,
+        bench: bool = False,
+    ) -> None:
         self.config = config
         self.sender = sender or N2KSender(config.n2k)
         self.assembler = SentenceAssembler()
@@ -46,6 +52,9 @@ class AisService:
         self._last_sent: dict[tuple[int, int], float] = {}
         self._transport: asyncio.DatagramTransport | None = None
         self._stopping = asyncio.Event()
+        self._tasks: set[asyncio.Task] = set()
+        #: Bench mode encodes synchronously instead of scheduling bus sends.
+        self.bench = bench
 
         self.sentences = 0
         self.decoded = 0
@@ -77,9 +86,22 @@ class AisService:
             else self.config.ais.min_update_interval_s
         )
 
+    def _rate_key(self, target: AisTarget) -> tuple[int, int]:
+        """Rate-limit key for one target.
+
+        Type 24 arrives as two separate messages (24A carries the name, 24B
+        the dimensions and callsign); they must not suppress each other, so
+        the part number is part of the key.
+        """
+        if target.msg_type == 24:
+            return (target.mmsi, 2 + (target.partno or 0))
+        if target.msg_type in STATIC_TYPES:
+            return (target.mmsi, 1)
+        return (target.mmsi, 0)
+
     def _should_send(self, target: AisTarget) -> bool:
         now = time.monotonic()
-        key = (target.mmsi, 0 if target.msg_type in STATIC_TYPES else 1)
+        key = self._rate_key(target)
         last = self._last_sent.get(key)
         if last is not None and now - last < self._interval(target):
             self.suppressed += 1
@@ -93,6 +115,13 @@ class AisService:
         cutoff = now - 600.0
         for key in [k for k, seen in self._last_sent.items() if seen < cutoff]:
             del self._last_sent[key]
+        # A very busy harbour can still exceed the cap inside the cutoff
+        # window; evict the oldest entries so the table stays bounded.
+        excess = len(self._last_sent) - MAX_TRACKED_TARGETS
+        if excess > 0:
+            oldest = sorted(self._last_sent.items(), key=lambda item: item[1])[:excess]
+            for key, _ in oldest:
+                del self._last_sent[key]
 
     def handle_target(self, target: AisTarget) -> None:
         own = self.config.ais.own_mmsi
@@ -108,12 +137,23 @@ class AisService:
         self._send(message, target.mmsi)
 
     def _send(self, message, mmsi: int) -> None:
-        try:
-            asyncio.get_running_loop().create_task(self.sender.send(message))
-        except RuntimeError:
-            # Bench mode: no running loop, send synchronously.
-            asyncio.run(self.sender.send(message))
+        if self.bench:
+            self.sender.log_frames(message)
+        else:
+            task = asyncio.get_running_loop().create_task(self.sender.send(message))
+            self._tasks.add(task)
+            task.add_done_callback(self._send_done)
         log.debug("PGN %s for MMSI %s", message.PGN, mmsi)
+
+    def _send_done(self, task: asyncio.Task) -> None:
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            # Otherwise the exception is only reported when the task is
+            # garbage-collected, which hides encoder and bus failures.
+            log.error("N2K send failed: %s", error, exc_info=error)
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -137,14 +177,21 @@ class AisService:
         try:
             await self._stopping.wait()
         finally:
-            stats_task.cancel()
-            if vedirect_task:
-                vedirect_task.cancel()
+            # Stop reading first so no new send tasks can be scheduled while
+            # the existing ones are being drained.
             if self._transport:
                 self._transport.close()
+            helpers = [stats_task]
+            if vedirect_task:
+                helpers.append(vedirect_task)
+            for task in helpers:
+                task.cancel()
+            await asyncio.gather(*helpers, return_exceptions=True)
+            if self._tasks:
+                await asyncio.gather(*self._tasks, return_exceptions=True)
             await self.sender.close()
             log.info(
-                "stopped: sentences=%d decoded=%d sent_suppressed=%d unsupported=%d",
+                "stopped: sentences=%d decoded=%d suppressed=%d unsupported=%d",
                 self.sentences,
                 self.decoded,
                 self.suppressed,
@@ -174,8 +221,14 @@ class AisService:
 
         cfg = self.config.vedirect
         loop = asyncio.get_running_loop()
-        queue: asyncio.Queue = asyncio.Queue(maxsize=64)
+        queue: asyncio.Queue[VeDirectFrame | None] = asyncio.Queue(maxsize=64)
         parser = VeDirectParser()
+
+        def offer(item: VeDirectFrame | None) -> None:
+            try:
+                queue.put_nowait(item)
+            except asyncio.QueueFull:
+                log.warning("VE.Direct queue full; dropping a frame")
 
         def reader() -> None:
             try:
@@ -185,15 +238,22 @@ class AisService:
                         if not chunk:
                             continue
                         for frame in parser.feed(chunk):
-                            loop.call_soon_threadsafe(queue.put_nowait, frame)
+                            loop.call_soon_threadsafe(offer, frame)
             except Exception as exc:  # pragma: no cover - hardware path
                 log.error("VE.Direct reader on %s failed: %s", cfg.port, exc)
+            finally:
+                # Wake the consumer so a dead port is reported instead of
+                # leaving the task blocked on queue.get() forever.
+                loop.call_soon_threadsafe(offer, None)
 
         reader_task = asyncio.create_task(asyncio.to_thread(reader))
         log.info("VE.Direct on %s at %d baud", cfg.port, cfg.baudrate)
         try:
-            while not self._stopping.is_set():
+            while True:
                 frame = await queue.get()
+                if frame is None:
+                    log.error("VE.Direct reader stopped; battery data disabled")
+                    return
                 message = vedirect_to_nmea2000(frame, instance=cfg.battery_instance)
                 if message is not None:
                     await self.sender.send(message)
@@ -215,20 +275,13 @@ def _setup_logging(level: str) -> None:
 
 def _encode_sentences(sentences: Iterable[str], config: Config) -> int:
     """Bench helper: decode AIVDM on the command line and print CAN frames."""
+    config.n2k.dry_run = True
     sender = N2KSender(config.n2k)
-    service = AisService(config, sender)
-    sender.config.dry_run = True
-    asyncio.run(sender.start())
+    service = AisService(config, sender, bench=True)
     for sentence in sentences:
         for raw in sentence.replace("\r", "\n").split("\n"):
             if raw.strip():
                 service.feed_sentence(raw.encode("ascii", "ignore"))
-    # Let scheduled sends finish before closing.
-    async def drain() -> None:
-        await asyncio.sleep(0.05)
-        await sender.close()
-
-    asyncio.run(drain())
     print(
         f"decoded={service.decoded} suppressed={service.suppressed} "
         f"unsupported={service.unsupported}",

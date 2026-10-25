@@ -99,6 +99,40 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 - Added four tests (36 total): normal ETA, sentinel ETA, midnight, sentinel
   date, and an invalid calendar date.
 
+### 2026-10-25 — Sentinel audit, four more bugs, refactor
+
+- The ETA fix exposed the general rule: `value=None` is the only correct way
+  to write N2K "not available" for a scaled NUMBER field. Raw sentinels are
+  range-checked and rejected. That made every `_angle`/`_sog`/`_position`/
+  `_rot` helper a latent crash: any target with a missing COG, SOG, heading,
+  rate of turn or position raised `ValueError` at encode time. The two
+  VE.Direct crashes (signed battery current, temperature) had the same cause.
+- Fixed: absent numeric AIS fields and battery fields are now `None`.
+- Fixed: zero AIS dimensions and draught became 0.0 m instead of "not
+  available"; a partial reference-point pair no longer invents a total.
+- Fixed: 129039 `unitType` was hardcoded to SOTDMA; it now follows the AIS
+  CS flag (0 = SOTDMA, 1 = CS).
+- Fixed: 24A and 24B shared one rate-limit key, so the second part was
+  suppressed for 60 s. They now have independent keys.
+- Fixed: headings 360–510 passed the old sentinel check and produced an
+  out-of-range gyro angle; only 0–359 is accepted.
+- Fixed: 24B hardcoded `gnssType=15`, an undefined lookup. `gnssType` now maps
+  AIS EPFD 1–8 and uses canboat's defined "Default: undefined" otherwise.
+- Added: NMEA 4.10 tag-block stripping, 24B auxiliary-craft mothership MMSI,
+  a finite-value guard in the VE.Direct parser, and a done callback that logs
+  failed send tasks instead of losing them at garbage collection.
+- Refactored `pgn.py` around `_number` (scaled; `None` = not available) and
+  `_code` (exact bits), with shared identity/position/motion/dimension
+  helpers. The LOOKUP/NUMBER distinction is now explicit at every call site.
+- 55 tests (19 new): absent numerics, zero and partial dimensions, unitType,
+  gnssType, 24B mothership, negative battery current, 24A/24B rate limiting,
+  tag blocks, invalid headings, failed-send logging, and the bus-path SI
+  encoder.
+- Found while refactoring: `PythonCanAsyncIOClient` creates its encoder with
+  the library default `units="native"` while the dry-run path used SI. The
+  wire bytes are identical for the AIS PGNs today, but the bus path now reuses
+  the SI encoder so that cannot change silently.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
@@ -143,7 +177,7 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 | `src/piais/vedirect.py` | VE.Direct parser and PGN 127508 |
 | `src/piais/service.py` | asyncio UDP daemon, rate limiting, CLI |
 | `src/piais/config.py` | TOML config |
-| `tests/` | 36 tests, including canboat field-order guard |
+| `tests/` | 55 tests, including canboat field-order guard |
 | `os/` | OS recipes, boot config, systemd units |
 | `docs/` | Research, architecture, hardware, software, ADRs |
 

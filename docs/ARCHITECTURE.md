@@ -63,8 +63,9 @@ list with duplicates.
 `AisService._should_send` keeps `(mmsi, kind)` → last-sent monotonic time:
 
 - position reports: at most one per `min_update_interval_s` (default 2 s),
-- static reports (type 5/24): at most one per `static_update_interval_s`
-  (default 60 s),
+- static reports (type 5, 24A, 24B): at most one per
+  `static_update_interval_s` (default 60 s). 24A and 24B use separate keys,
+  because they carry different data and must not suppress each other,
 - own MMSI: never (configurable),
 - the table is pruned after 10 minutes of inactivity.
 

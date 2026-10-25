@@ -14,10 +14,9 @@ clean standard PGN and are left for later; see docs/SOFTWARE.md.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 
 from nmea2000.message import NMEA2000Field, NMEA2000Message
-
-NA_U16 = 0xFFFF
 
 _FRAME_START, _IN_KEY, _IN_VALUE, _IN_CHECKSUM, _LINE_END = range(5)
 
@@ -31,9 +30,10 @@ class VeDirectFrame:
         if raw is None:
             return None
         try:
-            return float(raw)
+            value = float(raw)
         except ValueError:
             return None
+        return value if math.isfinite(value) else None
 
     @property
     def battery_voltage_v(self) -> float | None:
@@ -166,18 +166,17 @@ def to_nmea2000(
         return None
     current = frame.battery_current_a
     temperature = frame.battery_temperature_c
+    # ``current`` is a signed 16-bit field and ``temperature`` is unsigned.
+    # A raw 0xFFFF sentinel is outside the signed current range, so absent
+    # values must be passed as ``value=None``; the encoder then writes the
+    # correct all-ones sentinel without the range check rejecting it.
     fields = [
         NMEA2000Field(id="instance", raw_value=instance & 0xFF),
         NMEA2000Field(id="voltage", value=voltage),
-        (
-            NMEA2000Field(id="current", value=current)
-            if current is not None
-            else NMEA2000Field(id="current", raw_value=NA_U16)
-        ),
-        (
-            NMEA2000Field(id="temperature", value=temperature + 273.15)
-            if temperature is not None
-            else NMEA2000Field(id="temperature", raw_value=NA_U16)
+        NMEA2000Field(id="current", value=current),
+        NMEA2000Field(
+            id="temperature",
+            value=None if temperature is None else temperature + 273.15,
         ),
         NMEA2000Field(id="sid", raw_value=sid & 0xFF),
     ]

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 
+from can.message import Message
 from nmea2000.device import N2KDevice
 from nmea2000.encoder import create_encoder
 from nmea2000.input_formats import N2KFormat
@@ -28,6 +29,20 @@ class N2KSender:
         self._device: N2KDevice | None = None
         self._encoder = create_encoder(N2KFormat.PYTHON_CAN, units="si")
 
+    def frames(self, message: NMEA2000Message) -> list[Message]:
+        """Encode one PGN into CAN frames without touching the bus."""
+        return self._encoder.encode(message)
+
+    def log_frames(self, message: NMEA2000Message) -> None:
+        for frame in self.frames(message):
+            log.info(
+                "%s %08X [%d] %s",
+                self.config.channel,
+                frame.arbitration_id,
+                frame.dlc,
+                " ".join(f"{b:02X}" for b in frame.data),
+            )
+
     async def start(self) -> None:
         if self.config.dry_run:
             log.info("N2K dry-run: frames will be logged, not transmitted")
@@ -39,6 +54,11 @@ class N2KSender:
             model_id=self.config.model_id,
             manufacturer_information=self.config.manufacturer_information,
         )
+        # PythonCanAsyncIOClient builds its encoder with the library default
+        # units="native".  piais messages are always SI, and the dry-run path
+        # uses SI; give the bus path the same encoder so a canboat native-unit
+        # entry can never rescale a value on its way to the wire.
+        self._device.client.encoder = self._encoder
         await self._device.start()
         await self._device.wait_ready(timeout=10)
         log.info(
@@ -50,14 +70,7 @@ class N2KSender:
 
     async def send(self, message: NMEA2000Message) -> None:
         if self.config.dry_run:
-            for frame in self._encoder.encode(message):
-                log.info(
-                    "%s %08X [%d] %s",
-                    self.config.channel,
-                    frame.arbitration_id,
-                    frame.dlc,
-                    " ".join(f"{b:02X}" for b in frame.data),
-                )
+            self.log_frames(message)
             return
         if self._device is None:
             raise RuntimeError("N2KSender.start() was not called")

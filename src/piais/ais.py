@@ -23,7 +23,7 @@ import pyais
 # AIS sentinels (ITU-R M.1371 / GPSD AIVDM).
 NA_SPEED_KN = 102.3
 NA_COURSE_DEG = 360.0
-NA_HEADING_DEG = 511
+NA_HEADING_DEG = 511  # sentinel; valid headings are 0..359
 NA_TURN = -128
 NA_LAT_DEG = 91.0
 NA_LON_DEG = 181.0
@@ -69,6 +69,7 @@ class AisTarget:
     epfd: int | None = None
     dte: int | None = None
     ais_version: int | None = None
+    mothership_mmsi: int | None = None
 
     eta_month: int | None = None
     eta_day: int | None = None
@@ -135,21 +136,23 @@ def _lon(value: object) -> float | None:
 
 def _speed(value: object) -> float | None:
     v = _num(value)
-    if v is None or v >= NA_SPEED_KN - 0.05:
+    if v is None or v < 0 or v >= NA_SPEED_KN - 0.05:
         return None
     return v
 
 
 def _course(value: object) -> float | None:
     v = _num(value)
-    if v is None or v >= NA_COURSE_DEG - 0.05:
+    if v is None or v < 0 or v >= NA_COURSE_DEG - 0.05:
         return None
     return v
 
 
 def _heading(value: object) -> float | None:
+    # 511 is the sentinel; 360..510 are simply not valid headings and must not
+    # reach the encoder, whose gyro-angle range is 0..2*pi radians.
     v = _num(value)
-    if v is None or v >= NA_HEADING_DEG:
+    if v is None or not 0 <= v < 360:
         return None
     return v
 
@@ -209,6 +212,8 @@ def normalise(msg: object, channel: str | None = None) -> AisTarget | None:
         epfd=_int(get("epfd")),
         dte=_int(get("dte")),
         ais_version=_int(get("ais_version")),
+        # Only present on the auxiliary-craft variant of type 24B.
+        mothership_mmsi=_int(get("mothership_mmsi")),
         eta_month=_int(get("month")),
         eta_day=_int(get("day")),
         eta_hour=_int(get("hour")),
@@ -251,14 +256,37 @@ def checksum_ok(sentence: str) -> bool:
     return actual == expected
 
 
-def _split_sentence(line: bytes) -> list[bytes] | None:
+def _strip_tag_block(text: str) -> str:
+    """Remove an NMEA 4.10 tag block (``\\s:src,c:...*hh\\``) if present.
+
+    AIS-catcher can prefix sentences with a tag block; the checksum of the
+    AIVDM sentence follows the closing backslash, so the block must be removed
+    before validating or decoding.
+    """
+    if text.startswith("\\"):
+        end = text.find("\\", 1)
+        if end != -1:
+            return text[end + 1 :].strip()
+    return text
+
+
+def _clean_sentence(line: bytes | str) -> str | None:
+    """Decode, strip and validate one AIVDM/AIVDO sentence."""
     try:
-        text = line.decode("ascii", "strict").strip()
+        text = line.decode("ascii", "strict") if isinstance(line, bytes) else line
     except UnicodeDecodeError:
         return None
+    text = _strip_tag_block(text.strip())
     if not text.startswith(("!AIVDM", "!AIVDO", "$AIVDM", "$AIVDO")):
         return None
     if not checksum_ok(text):
+        return None
+    return text
+
+
+def _split_sentence(line: bytes | str) -> list[bytes] | None:
+    text = _clean_sentence(line)
+    if text is None:
         return None
     return text.encode("ascii").split(b",")
 
@@ -318,16 +346,17 @@ def decode(lines: list[bytes] | list[str]) -> AisTarget | None:
     """Decode one complete AIS message (one or more NMEA sentences)."""
     if not lines:
         return None
-    channel = None
+    cleaned: list[str] = []
     for line in lines:
-        raw = line.encode("ascii", "ignore") if isinstance(line, str) else line
-        if _split_sentence(raw) is None:
+        text = _clean_sentence(line)
+        if text is None:
             return None
+        cleaned.append(text)
+
+    parts = cleaned[-1].split(",")
+    channel = parts[4] if len(parts) > 4 and parts[4] else None
     try:
-        parts = _split_sentence(lines[-1] if isinstance(lines[-1], bytes) else lines[-1].encode())
-        if parts and len(parts) > 4:
-            channel = parts[4].decode("ascii", "ignore") or None
-        msg = pyais.decode(*lines)
+        msg = pyais.decode(*cleaned)
     except Exception:
         # A truncated sentence is normal on a noisy VHF channel.  Dropping it
         # is the correct behaviour.

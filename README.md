@@ -9,7 +9,7 @@ SD card. The same box is designed to grow into VE.Direct telemetry, sensors,
 BLE and LoRa.
 
 > **Status: working core, no boat hardware yet.** The AIS decode → PGN →
-> CAN-frame path is implemented and covered by 36 tests that use the real
+> CAN-frame path is implemented and covered by 55 tests that use the real
 > canboat PGN database. Nothing here has been run against a PiCAN 2, an
 > RTL-SDR or a live NMEA 2000 bus. Treat it as a bench-ready prototype.
 
@@ -95,7 +95,7 @@ Run the daemon against a UDP feed:
 Tests:
 
 ```bash
-.venv/bin/python -m pytest -q      # 36 passed
+.venv/bin/python -m pytest -q      # 55 passed
 ```
 
 ## On the boat
@@ -151,7 +151,7 @@ dry_run = false
 | [`docs/REFERENCES.md`](docs/REFERENCES.md) | Links and datasheets |
 | [`os/`](os/) | RAM/read-only OS recipes and systemd units |
 | `src/piais/` | The daemon and protocol code |
-| `tests/` | 36 tests, including a canboat field-order guard |
+| `tests/` | 55 tests, including a canboat field-order guard |
 | `scripts/replay_udp.py` | Replay AIVDM over UDP without a radio |
 
 ## Hardware warnings

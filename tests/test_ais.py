@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
-from piais.ais import SentenceAssembler, decode
+from piais.ais import SentenceAssembler, decode, normalise
 from tests.conftest import AIVDM
 
 
@@ -59,3 +61,20 @@ def test_type18_and_type24_are_distinguished() -> None:
     assert t18 is not None and t18.msg_type == 18
     assert t24a is not None and t24a.msg_type == 24 and t24a.partno == 0
     assert t24b is not None and t24b.msg_type == 24 and t24b.partno == 1
+
+
+def test_out_of_range_heading_is_dropped() -> None:
+    """Only 0..359 is a heading; 511 is the sentinel and 360..510 are invalid."""
+    for heading in (511, 400, -1):
+        target = normalise(SimpleNamespace(msg_type=1, mmsi=244009864, heading=heading))
+        assert target is not None
+        assert target.heading_deg is None
+
+
+def test_tag_block_is_stripped_before_decoding() -> None:
+    """AIS-catcher can prefix an NMEA 4.10 tag block; the sentence is still valid."""
+    line = "\\s:TEST,c:1700000000*00\\" + AIVDM["type1"]
+    target = decode([line])
+    assert target is not None
+    assert target.mmsi == 244009864
+    assert target.channel == "B"

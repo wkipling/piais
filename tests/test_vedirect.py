@@ -69,3 +69,29 @@ def test_garbage_then_frame_resynchronises() -> None:
     frames = parser.feed(encode_frame(VALUES))
     assert len(frames) == 1
     assert frames[0].values["PID"] == "0xA042"
+
+
+def test_missing_current_and_temperature_are_not_available() -> None:
+    """Absent fields must encode as N2K sentinels, not raw 0xFFFF.
+
+    ``current`` is signed, so a raw 0xFFFF sentinel used to raise
+    ``ValueError`` and take the whole send path down.
+    """
+    values = {k: v for k, v in VALUES.items() if k not in ("I", "T")}
+    frame = VeDirectParser().feed(encode_frame(values))[0]
+    message = to_nmea2000(frame)
+    assert message is not None
+    pgn, decoded = round_trip(message)
+    assert pgn == 127508
+    assert field(decoded, "current").value is None
+    assert field(decoded, "temperature").value is None
+
+
+def test_negative_current_round_trips() -> None:
+    """Discharging is a negative current; PGN 127508 uses a signed field."""
+    values = dict(VALUES, I="-1250")
+    frame = VeDirectParser().feed(encode_frame(values))[0]
+    message = to_nmea2000(frame)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "current").value == pytest.approx(-1.25, abs=0.11)

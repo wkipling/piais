@@ -164,3 +164,116 @@ def test_unsupported_type_is_ignored() -> None:
     target = _target([AIVDM["type1"]])
     target.msg_type = 27  # long-range report has no standard N2K PGN here
     assert to_nmea2000(target) is None
+
+
+def test_missing_motion_and_position_are_not_available() -> None:
+    """A target with only an MMSI must still encode.
+
+    Raw sentinels are rejected by the encoder's range checks, so every absent
+    numeric field is a potential crash; this is the regression guard.
+    """
+    target = AisTarget(msg_type=1, mmsi=244009864)
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    for name in ("longitude", "latitude", "cog", "sog", "heading", "rateOfTurn"):
+        assert field(decoded, name).value is None
+
+
+def test_zero_dimensions_and_draft_are_not_available() -> None:
+    """AIS encodes 0 for each dimension and for draught as "not available"."""
+    target = AisTarget(
+        msg_type=5,
+        mmsi=244009864,
+        dim_bow=0,
+        dim_stern=0,
+        dim_port=0,
+        dim_starboard=0,
+        draft_m=0.0,
+        imo=0,
+    )
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    for name in (
+        "length",
+        "beam",
+        "positionReferenceFromBow",
+        "positionReferenceFromStarboard",
+        "draft",
+        "imoNumber",
+    ):
+        assert field(decoded, name).value is None
+
+
+def test_partial_dimensions_do_not_invent_a_total() -> None:
+    target = AisTarget(
+        msg_type=5,
+        mmsi=244009864,
+        dim_bow=10,
+        dim_stern=0,
+        dim_port=2,
+        dim_starboard=2,
+    )
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "length").value is None
+    assert field(decoded, "beam").value == pytest.approx(4.0)
+    assert field(decoded, "positionReferenceFromBow").value == pytest.approx(10.0)
+
+
+def test_class_b_unit_type_follows_the_cs_flag() -> None:
+    """N2K unitType is 0 = SOTDMA, 1 = CS; do not hardcode one."""
+    target = AisTarget(msg_type=18, mmsi=244123456, cs=True)
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "unitType").value == "CS"
+
+    target.cs = False
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "unitType").value == "SOTDMA"
+
+
+@pytest.mark.parametrize(
+    ("epfd", "expected"),
+    [
+        (0, "Default: undefined"),
+        (1, "GPS"),
+        (3, "Combined GPS/GLONASS"),
+        (8, "Galileo"),
+        (9, "Default: undefined"),
+        (15, "Default: undefined"),
+    ],
+)
+def test_gnss_type_does_not_invent_a_receiver(epfd: int, expected: str) -> None:
+    """AIS EPFD 1..8 map exactly; everything else is "undefined".
+
+    AIS 15 means "internal GNSS", which canboat does not define.  Writing it
+    raw would decode to ``None``; canboat's defined "Default: undefined" is a
+    truthful alternative.
+    """
+    target = AisTarget(msg_type=19, mmsi=244009864, lat=51.3, lon=6.7, epfd=epfd)
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "gnssType").value == expected
+
+
+def test_class_b_part_b_has_no_gnss_type() -> None:
+    target = _target([AIVDM["type24B"]])
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "gnssType").value == "Default: undefined"
+
+
+def test_auxiliary_craft_mothership_mmsi_is_carried() -> None:
+    target = AisTarget(msg_type=24, partno=1, mmsi=982441234, mothership_mmsi=244123456)
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "mothershipUserId").value == 244123456
