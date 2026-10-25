@@ -196,6 +196,17 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 - Not run on a Pi, a PiCAN 2, a dongle or a switchable hub. The power figures
   and `uhubctl` behaviour are hardware claims that remain untested here.
 
+### 2026-10-25 — README cleanup
+
+- Rewrote the README around the AIS path: 236 → 173 lines. Removed the
+  board-selection essay, the electrical/BLE roadmap detail and the prior-art
+  table (now one paragraph), and cut the control-page config block to a
+  pointer at `config/piais.example.toml`.
+- VE.Direct is now one row in the status table plus one warning, not a
+  headline feature. The hardware baseline stays as a single sentence: any
+  64-bit Pi, Zero 2 W minimum.
+- No code changes; test count unchanged.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
