@@ -1,20 +1,32 @@
 # Hardware
 
-Target: Raspberry Pi Zero 2 W + PiCAN 2 (MCP2515) + RTL-SDR + 162 MHz antenna.
+**Minimum target:** Raspberry Pi Zero 2 W + PiCAN 2 (MCP2515) + RTL-SDR +
+162 MHz antenna.
+
+The Zero 2 W is the floor, not the ceiling: any larger 64-bit Pi with a 40-pin
+header works. A larger board is the better choice once VE.Direct devices are
+added.
+
+| Board class | UART / USB for VE.Direct | Role |
+| --- | --- | --- |
+| Zero 2 W | 1 PL011 (normally Bluetooth), 1 USB OTG | minimum supported |
+| Pi 3 | 1 PL011 + mini UART, up to 4 USB | more USB ports; same UART caution |
+| Pi 4 / CM4 | PL011 + `uart2`–`uart5` overlays, 2–4 USB | multiple hardware UARTs |
+| Pi 5 | PL011 + RP1 UARTs (check overlay support), 2+2 USB | most headroom |
 
 ## 1. Bill of materials
 
 | Item | Notes |
 | --- | --- |
-| Raspberry Pi Zero 2 W | quad Cortex-A53, 512 MB; 64-bit OS |
+| Raspberry Pi (Zero 2 W minimum) | quad Cortex-A53, 512 MB on the Zero 2 W; see the board table above |
 | microSD, 8–32 GB, high-endurance | class 10 / A1; endurance matters more than speed |
 | PiCAN 2 (SK Pang) | MCP2515 over SPI + CAN transceiver; 40-pin HAT |
 | RTL-SDR with TCXO | 162 MHz; TCXO strongly preferred |
 | 162 MHz antenna | vertical, with ground plane; an AIS-tuned whip beats a wideband scanner antenna |
 | SMA/RF cable | short, good quality; every dB counts at 162 MHz |
-| 5 V supply or buck | 2 A with headroom and bulk capacitance |
+| 5 V supply or buck | 2 A for a Zero 2 W; 3 A+ for a Pi 4; 5 A for a Pi 5 |
 | NMEA 2000 drop cable | M12 5-pin to bare wires or to the PiCAN terminal |
-| Heatsink | the Zero 2 W gets warm under SDR load |
+| Heatsink | the Zero 2 W gets warm under SDR load; larger boards need cooling too |
 | Enclosure | ventilated; RF and power away from the Pi's USB |
 
 ## 2. PiCAN 2 setup
@@ -80,8 +92,9 @@ Do not connect the N2K shield to the Pi's ground at both ends.
   noise at 162 MHz is real.
 - A short USB extension to move the dongle away from the Pi helps.
 - Bias tee: only enable it if the antenna/LNA needs it (`-gr biastee ON`).
-- AIS-catcher defaults to 1536 kS/s. On a Zero 2 W, enable `-F` (fixed-point
-  downsampling) and measure CPU; consider a lower supported rate if needed.
+- AIS-catcher defaults to 1536 kS/s. On a Zero 2 W (the minimum target),
+  enable `-F` (fixed-point downsampling) and measure CPU; consider a lower
+  supported rate if needed. Larger boards have more headroom.
 
 ## 4. Antenna
 
@@ -97,8 +110,8 @@ Do not transmit. This project is receive-only.
 ```mermaid
 flowchart LR
     B12[12 V battery] --> FUSE[Fuse]
-    FUSE --> BUCK[5 V 2 A buck]
-    BUCK --> PI[Pi Zero 2 W]
+    FUSE --> BUCK[5 V buck, 2 A+]
+    BUCK --> PI[Raspberry Pi (Zero 2 W min)]
     BUCK --> SDR[RTL-SDR]
     PI --> CAN[PiCAN 2]
     B12 --> N2K[N2K backbone power]

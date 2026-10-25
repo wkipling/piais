@@ -1,12 +1,20 @@
 # piais
 
-**AIS → NMEA 2000 on a headless, read-only Raspberry Pi Zero 2 W.**
+**SDR → AIS → NMEA 2000 on a Raspberry Pi — Zero 2 W minimum.**
 
 An RTL-SDR listens to the two AIS VHF channels. A PiCAN 2 puts the decoded
 targets onto the boat's NMEA 2000 backbone as standard AIS PGNs. The Pi runs
 from RAM with no writable root filesystem, so a power cut cannot corrupt the
 SD card. The same box is designed to grow into VE.Direct telemetry, sensors,
 BLE and LoRa.
+
+**Hardware baseline.** The Zero 2 W is the smallest board this is designed to
+run on: one PL011 UART (normally Bluetooth), one USB OTG port and 512 MB. Any
+larger 64-bit Pi with a 40-pin header works and is the better choice once you
+add electrical inputs: Pi 4/CM4-class boards add USB ports and can expose
+extra hardware UARTs (`uart2`–`uart5`) for VE.Direct, so the Zero's
+single-UART/Bluetooth trade-off disappears. See
+[`docs/HARDWARE.md`](docs/HARDWARE.md).
 
 > **Status: working AIS core, no boat hardware yet.** The AIS decode → PGN →
 > CAN-frame path is implemented and covered by 58 tests that use the real
@@ -17,7 +25,7 @@ BLE and LoRa.
 
 ---
 
-## Prior art and the gap
+## Other projects
 
 The pieces exist, but not as one open appliance:
 
@@ -26,7 +34,7 @@ The pieces exist, but not as one open appliance:
 | AIS-catcher `-I can0` | AIS → N2K | experimental; AIS only; no electrical data or piais-level rate limiting |
 | Victron GX device (NMEA 2000-out) | Victron electrical → N2K | a second computer (Cerbo/Ekrano); no AIS receiver; extra cost and power |
 | Digital Yacht veKonvert | one VE.Direct device → N2K | commercial; one input; no AIS or BLE |
-| Signal K + `signalk-to-nmea2000` | AIS and electrical, via plugins | Node server; more RAM and moving parts than a Zero 2 W appliance |
+| Signal K + `signalk-to-nmea2000` | AIS and electrical, via plugins | Node server; more RAM and moving parts than this appliance should need |
 | **This repository (piais)** | AIS + electrical on one N2K identity | AIS path works; electrical is at the feasibility stage |
 
 The gap is a **cheap, open, single-box N2K node that publishes AIS and
@@ -161,21 +169,23 @@ dry_run = false
 ## Hardware warnings
 
 - **NMEA 2000 is not a power bus for a Pi.** Power the Pi from a proper 5 V
-  supply or buck with headroom for the RTL-SDR (plan for ~1 A peak).
+  supply or buck with headroom for the RTL-SDR (about 1 A peak for a Zero 2 W;
+  a Pi 4/5 with the same peripherals needs more).
 - **The PiCAN 2 is not galvanically isolated.** Check your board revision. A
   ground loop through the Pi's supply and the N2K shield is a real risk; an
   isolated transceiver or isolated DC-DC is worth the money on a boat.
 - **120 Ω termination**: exactly two terminators on the trunk. The PiCAN 2
   jumper must be off if this node is a drop.
-- **BLE and VE.Direct compete for the Pi's UART.** The Zero 2 W's PL011 is
-  shared with Bluetooth; two VE.Direct devices need USB-serial adapters if BLE
-  is also used. See [`docs/ELECTRICAL.md`](docs/ELECTRICAL.md).
+- **BLE and VE.Direct compete for the Pi's UART on the Zero 2 W.** Its PL011
+  is shared with Bluetooth, so two VE.Direct devices need USB-serial adapters
+  if BLE is also used. A larger Pi can expose extra UARTs or simply has more
+  USB ports. See [`docs/ELECTRICAL.md`](docs/ELECTRICAL.md).
 - **A read-only root does not make the hardware immune to power loss.** It
   protects the SD card. Use a UPS/supercapacitor and a hardware watchdog if
   the supply is unreliable.
 - AIS-catcher's prebuilt packages are not compatible with the original Pi
-  Zero/Pi 1 because of floating-point support. The Zero 2 W (Cortex-A53) is
-  fine.
+  Zero/Pi 1 because of floating-point support. The Zero 2 W (Cortex-A53) and
+  every larger 64-bit Pi are fine.
 
 ## Licences and disclaimer
 

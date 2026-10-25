@@ -52,7 +52,7 @@ Source: <https://www.victronenergy.com/live/ve.can:nmea-2000:start>.
 ### Signal K
 
 `signalk-to-nmea2000` can publish both AIS and electrical data, but it needs a
-Node server and a larger machine than a Zero 2 W appliance should.
+Node server and a larger machine than this appliance should require.
 
 ### The gap
 
@@ -82,8 +82,9 @@ This is the main hardware constraint, not the protocol:
   an option, but needs validation.
 - Two VE.Direct devices therefore mean **USB-serial adapters** (and a hub), or
   one UART plus one USB adapter, or reading one device over BLE instead.
-- A powered hub is likely: the Zero 2 W must also power the RTL-SDR and the
-  PiCAN 2. Measure the 5 V budget before committing.
+- A powered hub is likely on a Zero 2 W: it must also power the RTL-SDR and the
+  PiCAN 2. A larger Pi has more 5 V headroom but still needs a properly sized
+  supply. Measure the budget before committing.
 - The official Victron VE.Direct-to-USB cable removes the level-shifting
   question and is the safest starting point; check whether the specific
   device's VE.Direct port is isolated. A bare 3-wire UART connection needs
@@ -91,6 +92,11 @@ This is the main hardware constraint, not the protocol:
   Quattro, Cerbo).
 - VE.Direct is a point-to-point port. Do not parallel two devices onto one
   UART.
+
+The Zero 2 W is the worst case, not a requirement. On a larger Pi this
+constraint goes away: Pi 4/CM4-class boards can expose `uart2`–`uart5`, and
+every larger board has more USB ports, so two or three VE.Direct devices can
+have their own port. The software does not change; only the device paths.
 
 ## 3. BLE: Bluetooth-only Victron devices
 

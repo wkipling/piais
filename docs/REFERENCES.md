@@ -39,7 +39,8 @@
 
 ## Hardware
 
-- Raspberry Pi Zero 2 W product page — <https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/>
+- Raspberry Pi Zero 2 W product page (minimum target) — <https://www.raspberrypi.com/products/raspberry-pi-zero-2-w/>
+- Raspberry Pi 4 / 5 product pages (larger boards, extra UARTs/USB) — <https://www.raspberrypi.com/products/>
 - PiCAN 2 / PiCAN 3 driver instructions (SK Pang) — <https://www.skpang.co.uk/pages/install>
 - PiCAN 2 product information — <https://www.skpang.co.uk/>
 - MCP2515 datasheet — Microchip

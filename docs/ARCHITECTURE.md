@@ -8,7 +8,7 @@ flowchart TB
       A[VHF antenna] --> B[RTL-SDR]
       B --> C[AIS-catcher<br/>demod + NMEA 0183]
     end
-    subgraph PI["Raspberry Pi Zero 2 W (read-only root)"]
+    subgraph PI["Raspberry Pi (Zero 2 W minimum; read-only root)"]
       C -->|UDP 127.0.0.1:10110| D[piais-aisd]
       D --> E[pyais decode +<br/>multipart reassembly]
       E --> F[rate limit / own-ship filter]
@@ -100,7 +100,8 @@ make the root writable just to keep logs.
 
 ## 7. Resource budget
 
-Targets, not yet measured on hardware:
+Targets, not yet measured on hardware. The Zero 2 W is the baseline; a larger
+Pi has more CPU, RAM and USB/UART headroom for the same software.
 
 | Resource | Target | Why |
 | --- | --- | --- |
@@ -111,7 +112,8 @@ Targets, not yet measured on hardware:
 | N2K bus | < 20% utilisation | 5 frames per position report |
 
 If the Zero 2 W struggles, the first lever is AIS-catcher sample rate and
-`-F`; the second is a dedicated AIS receiver instead of an SDR.
+`-F`; the next is a larger Pi (more CPU, RAM and ports). A dedicated AIS
+receiver is the alternative if the SDR itself is the bottleneck.
 
 ## 8. Security
 

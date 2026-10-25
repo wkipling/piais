@@ -5,7 +5,7 @@ and what is still an assumption.
 
 ## 1. Goal
 
-A headless Pi Zero 2 W that:
+A headless Raspberry Pi (Zero 2 W minimum) that:
 
 1. receives AIS on an RTL-SDR,
 2. publishes it on a NMEA 2000 bus via a PiCAN 2,
@@ -151,6 +151,16 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 - Wrote `docs/ELECTRICAL.md`; README reframed around the real gap: no cheap,
   open, single-box N2K node for AIS + electrical. No code changes.
 
+### 2026-10-25 — Hardware baseline
+
+- The Zero 2 W is the **minimum** supported board, not the only target. Any
+  larger 64-bit Pi with a 40-pin header works and is preferable once multiple
+  VE.Direct devices are added: more USB ports, and extra hardware UARTs on
+  Pi 4/CM4-class boards (`uart2`–`uart5`).
+- Updated the README, HARDWARE, ELECTRICAL, ARCHITECTURE, DECISIONS, research
+  notes and package description to state the baseline instead of implying the
+  Zero 2 W is the only platform.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
@@ -179,7 +189,7 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 
 | Risk | Why it matters | Mitigation |
 | --- | --- | --- |
-| RTL-SDR load on Zero 2 W | USB + DSP could overrun buffers | AIS-catcher `-F` fixed-point downsampling; measure CPU; heatsink |
+| RTL-SDR load on Zero 2 W | USB + DSP could overrun buffers | AIS-catcher `-F` fixed-point downsampling; measure CPU; a larger Pi is the fallback |
 | RTL-SDR frequency drift | AIS is 25 kHz channels; cheap dongles drift | Use a TCXO dongle; `freqoffset` in AIS-catcher |
 | PiCAN 2 not isolated | Ground loops, noise, damage | Check board; consider isolated transceiver or isolated DC-DC |
 | N2K bus saturation | Many targets × fast packets | Per-MMSI rate limit; measure with `candump`; raise interval |

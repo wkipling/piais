@@ -40,8 +40,8 @@ fast enough for a single station. MIT matches this repository.
 and use its `N2KDevice` for ISO 11783-5 address claiming and fast packets.
 
 **Why:** canboat is the de-facto open N2K definition and is actively
-maintained. `nmea2000` publishes ARM64 wheels for the Pi Zero 2 W (glibc and
-musl), so deployment does not need a Rust toolchain. Address claiming is
+maintained. `nmea2000` publishes ARM64 wheels for Raspberry Pi OS (Zero 2 W and
+larger), so deployment does not need a Rust toolchain. Address claiming is
 non-trivial; reusing a tested implementation is safer than writing one.
 
 **Cost:** a dependency on canboat's field definitions. Mitigated by the
@@ -145,7 +145,8 @@ Wi-Fi on the Zero 2 W.
 
 **Cost:** a cable and a serial port per VE.Direct device. On a Zero 2 W that
 means USB-serial adapters and a hub, because the single PL011 UART is normally
-used by Bluetooth.
+used by Bluetooth; a larger Pi can expose extra UARTs or simply has more USB
+ports.
 
 **Alternatives:** BLE for everything (fewer wires, fewer fields, more secrets);
 Victron GX device (most capable, expensive, no AIS).

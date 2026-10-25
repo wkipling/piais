@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "piais"
 version = "0.1.0"
-description = "AIS from RTL-SDR to NMEA 2000 on a RAM-resident Raspberry Pi Zero 2 W"
+description = "AIS from RTL-SDR to NMEA 2000 on a RAM-resident Raspberry Pi (Zero 2 W minimum)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

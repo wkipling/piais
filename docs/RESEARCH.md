@@ -46,9 +46,11 @@ Performance tuning (from upstream docs):
 - `-F` enables fixed-point downsampling. On a 700 MHz Pi Model B it cut decode
   time from 17.3 s to 7.7 s; upstream reports **~40% CPU on a Pi Zero W** with
   it. The Zero 2 W is a quad Cortex-A53 and substantially faster, so CPU
-  headroom is likely. **Not measured on the Zero 2 W here.**
+  headroom is likely. **Not measured on the Zero 2 W here.** The Zero 2 W is
+  the minimum target; every larger Pi has more CPU headroom.
 - Upstream warns that prebuilt packages are not compatible with the original
-  Pi Zero / Pi 1 due to floating-point support. The Zero 2 W is fine.
+  Pi Zero / Pi 1 due to floating-point support. The Zero 2 W and every larger
+  64-bit Pi are fine.
 - `-s` sets sample rate; supported internal rates include 96k, 192k, 288k,
   384k, 768k, 1536k, 3072k, 6144k, 12288k.
 - `-gr` sets RTL-SDR gain/AGC (`AIS-catcher -gr tuner 33.3 rtlagc ON`).
@@ -230,9 +232,13 @@ Plan for a 5 V supply or buck rated **2 A** with bulk capacitance. NMEA 2000
 backbone power is not intended to power a Pi plus SDR; use a separate supply
 or a properly rated buck from the boat's 12 V, fused.
 
+The table is the Zero 2 W baseline. A Pi 4/5 adds several watts and needs a
+3 A+ supply and more cooling; measure the actual board before choosing a buck.
+
 ## 3. What is still unknown
 
-- Real CPU load and USB stability of AIS-catcher on a Zero 2 W.
+- Real CPU load and USB stability of AIS-catcher on a Zero 2 W (the minimum
+  target).
 - Real sensitivity of the chosen RTL-SDR + antenna compared with the boat's
   existing receiver.
 - Whether the PiCAN 2 can be powered and grounded without noise on a real

@@ -54,9 +54,10 @@ configuration lives under `/etc/AIS-catcher/`; exact file names change between
 releases, so use its documented configuration rather than copying a unit from
 this repo.
 
-Enable `-F` for the RTL-SDR fixed-point downsampler on a Zero 2 W. Measure CPU
-with `top`; if it is still too high, use a lower supported sample rate
-(`-s 768K`, `-s 384K`).
+Enable `-F` for the RTL-SDR fixed-point downsampler on a Zero 2 W (the
+minimum target); on a larger Pi, measure before enabling it. Measure CPU with
+`top`; if it is still too high, use a lower supported sample rate (`-s 768K`,
+`-s 384K`).
 
 **Do not enable `-I can0` at the same time as piais.** Two processes writing
 AIS PGNs will duplicate targets and fight over address claiming.
