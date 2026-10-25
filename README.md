@@ -160,12 +160,15 @@ rules and the HTTP API are in [`docs/CONTROL.md`](docs/CONTROL.md).
 - AIS-catcher's prebuilt packages do not run on the original Pi Zero/Pi 1;
   the Zero 2 W and every larger 64-bit Pi are fine.
 
-## Licences
+## Licence
 
-- This repository: MIT (see [`LICENSE`](LICENSE)).
-- AIS-catcher is GPL-3.0 and is used as a **separate program**, not linked.
+- This repository: **GPL-3.0-or-later** (see [`LICENSE`](LICENSE)). You can
+  use, study, share and modify it; if you distribute a modified version, it
+  must stay open under the same terms.
+- AIS-catcher is GPL-3.0 and is used as a separate program. Both licences are
+  compatible; the split is operational, not a licence firewall.
 - `nmea2000`/canboat are Apache-2.0; `pyais` is MIT; `victron-ble` is
-  Unlicense.
+  Unlicense. All are compatible with GPL-3.0.
 - NMEA 2000 is a proprietary standard of the National Marine Electronics
   Association. This project is not NMEA certified and is not affiliated with
   NMEA.

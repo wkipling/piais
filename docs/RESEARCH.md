@@ -74,10 +74,25 @@ default. Upstream's own documentation says:
 and that the implementation handles AIS messages **1–5, 9, 11, 14, 18, 19, 21
 and 24**, tested at a high level with canboat and a virtual network.
 
+Why upstream is cautious, beyond the quote:
+
+- The N2K output is an **optional build** (Timo Lappalainen's C++ library), so
+  a package that starts and decodes AIS may still have no `-I` support.
+- Validation was against canboat and a **virtual network**, not a boat's
+  backbone with real address claiming, ISO requests and other devices.
+- NMEA 2000 is a proprietary standard. Address claim, fast-packet sequencing
+  and PGN field layouts are easy to get subtly wrong, and a bad N2K writer can
+  disturb the whole bus in a way a bad NMEA 0183 sentence cannot.
+- AIS-catcher's core is DSP; N2K is a side output, not the project's main
+  field-tested path.
+
+The last two points are an assessment, not upstream wording.
+
 This means **the shortest path to "AIS on N2K" may be one program**. It is
 also the best possible reference for validating piais. But it is explicitly
 not a production boat path, and it does not give you VE.Direct, sensors,
-rate limiting or a tested field contract. Hence ADR-005.
+rate limiting or a tested field contract. Hence ADR-005. The licence is no
+longer an obstacle after ADR-012; the experimental status is.
 
 **[rtl_ais](https://github.com/dgiardini/rtl-ais)** — small dual-channel
 receiver with UDP/TCP NMEA output. Older and less sensitive than AIS-catcher.
@@ -92,10 +107,10 @@ and CPU budget becomes a problem.
 | --- | --- | --- |
 | [pyais](https://github.com/M0r13n/pyais) | MIT | Pure Python, all message types, multipart helpers. **Used here.** |
 | [libais](https://github.com/schwehr/libais) | Apache-2.0 | C++, fast, older. |
-| [aiscat](https://pypi.org/project/aiscat/) | GPL-3.0 | Python binding to AIS-catcher's decoder; very fast, but GPL linking. |
+| [aiscat](https://pypi.org/project/aiscat/) | GPL-3.0 | Python binding to AIS-catcher's decoder. Very fast; needs a native build. Licence-compatible after ADR-012, but not used. |
 
-pyais is the right trade-off for a Pi appliance: MIT, no compile step, fast
-enough for ~50 msg/s.
+pyais is the right trade-off for a Pi appliance: pure Python, no compile step,
+fast enough for ~50 msg/s. `aiscat` is faster but adds a native build.
 
 ### 2.3 AIS → NMEA 2000
 
@@ -107,9 +122,8 @@ This is the layer people ask about, and there are several answers:
 **[AK-Homberger/NMEA2000-AIS-Gateway](https://github.com/AK-Homberger/NMEA2000-AIS-Gateway)**
 — GPL-3.0, ESP32, reads NMEA 0183 AIS and emits N2K PGNs. This is the
 closest conceptual match to piais. It uses Timo Lappalainen's NMEA2000 library
-and `aduvenhage/ais-decoder`. Good reference for PGN selection; GPL means it
-cannot be linked into an MIT project, but reading it for protocol mapping is
-fine.
+and `aduvenhage/ais-decoder`. Good reference for PGN selection; GPL-3.0, so
+compatible with piais after ADR-012, though it is not vendored.
 
 **[Signal K](https://signalk.org/) + [signalk-to-nmea2000](https://github.com/SignalK/signalk-to-nmea2000)**
 — Apache-2.0. A full marine data server, plugin converts Signal K paths to

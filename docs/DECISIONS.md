@@ -10,16 +10,19 @@ decided, why, and what it costs.
 **Decision:** run AIS-catcher as a separate process and consume its NMEA 0183
 output over UDP. Do not link `aiscat` or vendor AIS-catcher's C++ into piais.
 
-**Why:** AIS-catcher is the best-tested open RTL-SDR AIS demodulator, but it
-is GPL-3.0. A separate process keeps the MIT/Apache boundary clean, lets the
-SDR be swapped for a serial receiver, and lets AIS-catcher be restarted or
-updated independently.
+**Why:** AIS-catcher owns the RTL-SDR and does the DSP. Keeping it external
+lets the SDR be swapped for a serial receiver, lets either process be
+restarted or updated independently, and keeps the demodulator's crash blast
+radius away from the N2K writer. The licence boundary was the original
+motivation; after ADR-012 both projects are GPL-3.0, so this now stands on
+operational grounds.
 
 **Cost:** an extra process, an extra UDP hop, and a second service to
 supervise. Acceptable on a 512 MB Pi.
 
-**Alternatives:** `aiscat` (GPL linking, very fast), direct SDR DSP in piais
-(too much work, worse sensitivity).
+**Alternatives:** `aiscat` (now licence-compatible; very fast, but adds a
+native build step), direct SDR DSP in piais (too much work, worse
+sensitivity).
 
 ## ADR-002 — pyais for payload decoding
 
@@ -28,7 +31,8 @@ supervise. Acceptable on a 512 MB Pi.
 **Decision:** use `pyais` (MIT).
 
 **Why:** pure Python, no build step, supports all message types and multipart,
-fast enough for a single station. MIT matches this repository.
+fast enough for a single station. `aiscat` would be faster, but needs a native
+build; after ADR-012 licence compatibility is no longer a tie-breaker.
 
 **Cost:** slower than `aiscat` or libais; irrelevant at ~50 msg/s.
 
@@ -75,6 +79,10 @@ not covered by this repository's tests. piais exists to own those concerns.
 **Cost:** one more process than the absolute minimum. If AIS is the only
 requirement and `-I` proves reliable, Phase 2 may show that piais is
 unnecessary — that is a valid outcome and should be recorded here.
+
+**Revisited 2026-10-25:** relicensing piais (ADR-012) removes the licence
+obstacle but not the reason for this decision. Upstream still calls the N2K
+output experimental, and the two writers must not share the bus.
 
 ## ADR-006 — Raspberry Pi OS + overlayfs first, Alpine diskless later
 
@@ -166,3 +174,23 @@ ways the user cannot see, especially when the source is in a transient state.
 
 **Cost:** fewer fields on the bus until the source exposes them or the user
 configures the missing constant.
+
+## ADR-012 — Relicense piais to GPL-3.0-or-later
+
+**Status:** accepted, 2026-10-25.
+
+**Decision:** distribute piais under GPL-3.0-or-later (previously MIT).
+
+**Why:** the MIT/Apache boundary existed only to keep AIS-catcher's GPL-3.0
+decoder at arm's length. That constrained what could be linked or adapted for
+a benefit this project does not need. There is no requirement to let
+commercial users close their changes. GPL-3.0-or-later is compatible with
+AIS-catcher (GPL-3.0) and canboat (Apache-2.0), and it keeps distributed
+derivatives open.
+
+**Cost:** anyone distributing a modified piais must publish the source under
+the same terms. Code already published under MIT (commits before this change)
+remains available under MIT; the relicense applies from this version onward.
+
+**What does not change:** the process split. AIS-catcher still owns the SDR
+and piais still owns the bus, for operational reasons rather than licensing.

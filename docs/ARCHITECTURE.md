@@ -22,9 +22,10 @@ flowchart TB
 ```
 
 The important boundary: **AIS-catcher is a separate process**. piais reads
-NMEA 0183 from it and never links GPL code into the MIT daemon. This also
-means the SDR can be swapped for a serial AIS receiver without touching the
-protocol layer.
+NMEA 0183 from it, so the SDR can be swapped for a serial AIS receiver without
+touching the protocol layer, and either process can restart independently.
+Both are GPL-3.0 now (ADR-012), so the split is operational rather than a
+licence firewall.
 
 ## 2. Process model
 

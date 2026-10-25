@@ -207,6 +207,20 @@ box, on a real N2K bus, after a week of unattended power-cycling.
   64-bit Pi, Zero 2 W minimum.
 - No code changes; test count unchanged.
 
+### 2026-10-25 — Relicense to GPL-3.0-or-later
+
+- Replaced the MIT `LICENSE` with GPL-3.0 and changed `pyproject.toml` and the
+  README to GPL-3.0-or-later (ADR-012). Sole author, so no contributor consent
+  was needed. Code already published under MIT stays available under MIT; the
+  new terms apply from this version onward.
+- Updated ADR-001/002/005 and the research notes so they no longer justify
+  decisions with a constraint that no longer exists. The process split stays:
+  AIS-catcher owns the SDR and piais owns the bus, for operational reasons.
+- Recorded why AIS-catcher's N2K output is still not the production path:
+  optional build, virtual-network validation, and a bus-wide blast radius if
+  the writer is wrong.
+- No code changes; 119 tests still pass.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
