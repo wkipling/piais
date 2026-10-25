@@ -20,9 +20,9 @@ operational grounds.
 **Cost:** an extra process, an extra UDP hop, and a second service to
 supervise. Acceptable on a 512 MB Pi.
 
-**Alternatives:** `aiscat` (now licence-compatible; very fast, but adds a
-native build step), direct SDR DSP in piais (too much work, worse
-sensitivity).
+**Alternatives:** `aiscat` (licence-compatible after ADR-012; a decoder only, so
+it would not replace AIS-catcher's SDR handling), direct SDR DSP in piais
+(too much work, worse sensitivity).
 
 ## ADR-002 — pyais for payload decoding
 
@@ -31,8 +31,12 @@ sensitivity).
 **Decision:** use `pyais` (MIT).
 
 **Why:** pure Python, no build step, supports all message types and multipart,
-fast enough for a single station. `aiscat` would be faster, but needs a native
-build; after ADR-012 licence compatibility is no longer a tie-breaker.
+fast enough for a single station. `aiscat` is about 14× faster and ships
+aarch64/musllinux wheels, but it would replace pyais's objects with
+AIS-catcher's JSON schema and move the decode layer onto AIS-catcher's release
+cycle. At ~50 msg/s the throughput is irrelevant; keeping the layer in Python
+means piais can be tuned without a native toolchain or an upstream schema.
+Licence compatibility is no longer a tie-breaker after ADR-012.
 
 **Cost:** slower than `aiscat` or libais; irrelevant at ~50 msg/s.
 

@@ -221,6 +221,20 @@ box, on a real N2K bus, after a week of unattended power-cycling.
   the writer is wrong.
 - No code changes; 119 tests still pass.
 
+### 2026-10-25 — aiscat review
+
+- Verified `aiscat` 0.68.16 on PyPI: a **decoder only** (NMEA AIVDM/AIVDO,
+  AIS-catcher JSON or 0xac in; dicts/JSON/NMEA out), multipart reassembly
+  built in, types 1–28, manylinux and musllinux aarch64 wheels. It does not
+  read the SDR, so it cannot replace AIS-catcher; it would replace pyais plus
+  the sentence assembler.
+- Corrected the "needs a native build" claim introduced with the GPL commit.
+- Checked it against this repo's type 1 and multipart type 5 fixtures: both
+  decode, `channel` is present, garbage raises `ValueError`.
+- Decision unchanged: keep pyais. At ~50 msg/s the ~14× speedup buys nothing,
+  and a pure-Python decode layer is part of what makes piais tunable. The
+  NMEA 0183 boundary with AIS-catcher stays.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install

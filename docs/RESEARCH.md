@@ -107,10 +107,24 @@ and CPU budget becomes a problem.
 | --- | --- | --- |
 | [pyais](https://github.com/M0r13n/pyais) | MIT | Pure Python, all message types, multipart helpers. **Used here.** |
 | [libais](https://github.com/schwehr/libais) | Apache-2.0 | C++, fast, older. |
-| [aiscat](https://pypi.org/project/aiscat/) | GPL-3.0 | Python binding to AIS-catcher's decoder. Very fast; needs a native build. Licence-compatible after ADR-012, but not used. |
+| [aiscat](https://pypi.org/project/aiscat/) | GPL-3.0 | Python binding to AIS-catcher's decoder. Very fast; wheels for manylinux/musllinux aarch64. A decoder only: it does not read the SDR, and its dicts are AIS-catcher's JSON schema. Not used. |
+
+`aiscat` is a **decoder**, not an SDR front end. It consumes NMEA AIVDM/AIVDO
+(or AIS-catcher JSON or 0xac packets) and returns dicts. It cannot replace
+AIS-catcher's job of owning the RTL-SDR and doing the DSP; it would replace
+`pyais` plus this repo's sentence assembler. It does multipart reassembly
+internally and adds AIS-catcher's lookup text and binary ASM interpretation
+(types 6/8), none of which piais maps to PGNs today.
 
 pyais is the right trade-off for a Pi appliance: pure Python, no compile step,
-fast enough for ~50 msg/s. `aiscat` is faster but adds a native build.
+fast enough for ~50 msg/s. `aiscat` is roughly 14× faster and would broaden
+decoding, but at this workload that buys nothing and costs control over the
+decode layer.
+
+Checked against this repo's own sentences: `aiscat` 0.68.16 decodes the type 1
+and multipart type 5 fixtures, returns the `channel` field, and raises
+`ValueError` on garbage. An adapter would work; it is still not worth taking
+the dependency.
 
 ### 2.3 AIS → NMEA 2000
 
