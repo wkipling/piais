@@ -46,11 +46,17 @@
 - NMEA 2000 M12 connector pinout — see SH-ESP32 documentation and NMEA 2000 physical-layer references
 - SH-ESP32 open marine hardware — <https://github.com/hatlabs/SH-ESP32>
 
-## VE.Direct
+## VE.Direct and Victron
 
 - `karioja/vedirect` (MIT) — <https://github.com/karioja/vedirect>
 - Victron VE.Direct protocol documentation — Victron Energy
 - Victron community discussions on VE.Direct checksums and field units
+- Victron Marine Integration Guide / NMEA 2000 — <https://www.victronenergy.com/live/ve.can:nmea-2000:start>
+- Victron *Datacommunication* whitepaper (authoritative PGN list; not transcribed here)
+- Digital Yacht veKonvert (commercial reference, one VE.Direct input) — <https://digitalyacht.support/product/vekonvert-victron-ve-direct-to-nmea-2000-gateway/>
+- `victron-ble` (Unlicense) — <https://github.com/keshavdv/victron-ble>
+- Victron Instant Readout protocol discussion — <https://community.victronenergy.com/questions/187303/victron-bluetooth-advertising-protocol.html>
+- `bleak` BLE client (MIT) — <https://github.com/hbldh/bleak>
 
 ## LoRa and BLE
 

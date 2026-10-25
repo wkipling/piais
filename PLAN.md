@@ -133,6 +133,24 @@ box, on a real N2K bus, after a week of unattended power-cycling.
   wire bytes are identical for the AIS PGNs today, but the bus path now reuses
   the SI encoder so that cannot change silently.
 
+### 2026-10-25 — Electrical feasibility (veKonvert, VE.Direct, BLE)
+
+- Looked at Digital Yacht veKonvert: commercial, one VE.Direct input,
+  SmartShunt/BMV/MPPT, no AIS and no open code. It confirms the expected
+  battery/solar PGNs but is not a code source.
+- VE.Direct shunt/MPPT is feasible: V/I/T → 127508, SOC/time-to-go → 127506,
+  charger state → 127507, PV voltage → 127751 (candidate). PV power and yield
+  have no standard PGN and stay off the bus.
+- BT-only Victron gear is feasible with `victron-ble` (Unlicense) using
+  Instant Readout advertisements; one adapter can hear many devices. Keys come
+  from VictronConnect. Orion-Tr Smart exposes voltages but no current; Orion XS
+  exposes both.
+- Hardware constraints: one PL011 UART shared with Bluetooth, so two VE.Direct
+  devices need USB-serial adapters; the 5 V budget with SDR + PiCAN + hub is
+  unmeasured.
+- Wrote `docs/ELECTRICAL.md`; README reframed around the real gap: no cheap,
+  open, single-box N2K node for AIS + electrical. No code changes.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
@@ -150,8 +168,12 @@ box, on a real N2K bus, after a week of unattended power-cycling.
    own web view.
 5. **Power-cut soak**: overlayfs or Alpine diskless, watchdog enabled, 50
    power cuts, then `fsck` the boot partition and boot again.
-6. Then: VE.Direct on `/dev/ttyUSB0`, one battery instance, compare with the
-   Victron app.
+6. **Electrical E0 (after AIS is on the bus):** read the shunt, then the
+   MPPT, over VE.Direct and compare parsed frames with the Victron app.
+   Publish 127508/127506/127507 only after the bench comparison; see
+   [`docs/ELECTRICAL.md`](docs/ELECTRICAL.md).
+7. **BLE E3:** on a laptop or the Pi, run `victron-ble read` for the DC-DC
+   charger and confirm which fields the model exposes before integrating.
 
 ## 7. Open questions and risks
 
@@ -163,7 +185,10 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 | N2K bus saturation | Many targets × fast packets | Per-MMSI rate limit; measure with `candump`; raise interval |
 | Address claim collision | Preferred address 25 may be taken | The library negotiates; verify on a real bus |
 | canboat field changes | Silent bit shifts | Field-order test must stay green; pin canboat version |
-| VE.Direct solar fields | No clean standard PGN | Only map battery V/I/T for now |
+| MPPT PV power/yield | No standard PGN | Leave off the bus; never derive current from power/voltage |
+| Orion-Tr Smart current | Instant Readout does not expose it | Publish voltage/state only; Orion XS has current |
+| One UART shared with BLE | PL011 serves Bluetooth by default | USB-serial adapters for VE.Direct, or validate `miniuart-bt` |
+| Pi 5 V budget | SDR + PiCAN + USB hub could brown out | Powered hub; measure before installing |
 | LoRa bandwidth | Raw AIS does not fit | Send summaries, not the NMEA stream |
 | Read-only root hides problems | Logs vanish on reboot | Optional RAM log ring + persistent journal only when diagnosing |
 
@@ -179,6 +204,7 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 | `src/piais/config.py` | TOML config |
 | `tests/` | 58 tests, including canboat field-order guard |
 | `os/` | OS recipes, boot config, systemd units |
+| `docs/ELECTRICAL.md` | Victron shunt/MPPT/DC-DC feasibility and candidate PGNs |
 | `docs/` | Research, architecture, hardware, software, ADRs |
 
 ## 9. How to resume after a context loss

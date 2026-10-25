@@ -155,10 +155,14 @@ is zero modulo 256.
   here.
 - Common fields: `PID`, `V` (mV), `I` (mA, positive = charging), `VPV`, `PPV`,
   `CS` (charge state), `MPPT`, `ERR`, `LOAD`, `T` (0.01 °C, not on all units).
+  The MPPT `T` field is not always battery temperature; do not publish it as
+  127508 battery temperature without checking the model.
 - No clean standard N2K PGN exists for solar-specific data. Battery voltage
-  and current map well to PGN 127508 (`batteryStatus`); the rest needs
-  proprietary PGNs or a Victron-specific mapping. piais only claims 127508
-  for now.
+  and current map well to PGN 127508 (`batteryStatus`); charger state fits
+  127507 (`chargerStatus`); PV voltage may fit 127751 (`dcVoltageCurrent`).
+  PV power and yield have no standard PGN and stay off the bus. piais only
+  claims 127508 for now. See [`ELECTRICAL.md`](ELECTRICAL.md) for the candidate
+  mapping and the open questions.
 
 ### 2.6 LoRa
 
@@ -182,9 +186,15 @@ optional summary output, not a transport for NMEA.
 
 ### 2.7 BLE
 
-BLE NMEA 0183 (NUS/SPP-like) is a common way to feed a phone chart plotter.
-It is a small, well-understood output and does not need research beyond
-choosing a GATT profile. Not implemented yet.
+BLE has two separate roles:
+
+- **NMEA 0183 out** to a phone chart plotter (NUS/SPP-like). A small,
+  well-understood output; not implemented yet.
+- **Victron Instant Readout in.** `victron-ble` (Unlicense) parses the
+  encrypted advertisements from SmartShunt/BMV, MPPT, Orion-Tr Smart and
+  Orion XS. It is advertisement-based, so one adapter can receive many
+  devices; each device needs an advertisement key from VictronConnect.
+  See [`ELECTRICAL.md`](ELECTRICAL.md).
 
 ### 2.8 Read-only / RAM-resident OS
 

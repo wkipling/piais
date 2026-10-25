@@ -128,3 +128,40 @@ clean standard PGN; a proprietary mapping should be a deliberate, documented
 choice, not an accident.
 
 **Cost:** less telemetry on the bus in v1.
+
+## ADR-010 — VE.Direct first, BLE for Bluetooth-only devices
+
+**Status:** accepted for the electrical phase (not implemented).
+
+**Decision:** read the shunt and MPPT over VE.Direct wherever a cable is
+practical; use BLE (`victron-ble`, Unlicense) only for devices with no
+VE.Direct port, such as a Bluetooth-only Orion-Tr Smart.
+
+**Why:** VE.Direct exposes more fields, needs no per-device encryption key,
+and has deterministic timing. BLE Instant Readout is advertisement-based and
+convenient (one adapter can hear many devices), but it is an unofficial
+interface, needs a secret key per device, and shares the 2.4 GHz radio with
+Wi-Fi on the Zero 2 W.
+
+**Cost:** a cable and a serial port per VE.Direct device. On a Zero 2 W that
+means USB-serial adapters and a hub, because the single PL011 UART is normally
+used by Bluetooth.
+
+**Alternatives:** BLE for everything (fewer wires, fewer fields, more secrets);
+Victron GX device (most capable, expensive, no AIS).
+
+## ADR-011 — Publish measured electrical values only
+
+**Status:** accepted.
+
+**Decision:** do not derive N2K values that the source did not measure. In
+particular, do not compute PV current from `PPV / VPV`, do not publish
+remaining Ah without a configured battery capacity, and do not label an MPPT
+internal temperature as battery temperature.
+
+**Why:** this is the same rule as the AIS sentinels: a plausible-looking
+number is worse than “not available”. Derived values can also be wrong in
+ways the user cannot see, especially when the source is in a transient state.
+
+**Cost:** fewer fields on the bus until the source exposes them or the user
+configures the missing constant.
