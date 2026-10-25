@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 
-from piais.ais import SentenceAssembler, decode
+from piais.ais import AisTarget, SentenceAssembler, decode
 from piais.pgn import to_nmea2000
 
 from tests.conftest import AIVDM, approx_deg, approx_mps, field, round_trip
@@ -84,6 +86,60 @@ def test_class_a_static_round_trip() -> None:
     assert field(decoded, "length").value == pytest.approx(200.0)
     assert field(decoded, "beam").value == pytest.approx(30.0)
     assert field(decoded, "draft").value == pytest.approx(6.5)
+    eta_date = field(decoded, "etaDate").value
+    assert eta_date.month == 5 and eta_date.day == 27
+    assert field(decoded, "etaTime").value == dt.time(12, 30)
+
+
+def test_eta_not_available_is_not_invented() -> None:
+    """AIS hour=24 / minute=60 means unknown, not 24:00 or 01:00."""
+    assembler = SentenceAssembler()
+    assert assembler.feed(AIVDM["type5_eta_na_a"]) is None
+    complete = assembler.feed(AIVDM["type5_eta_na_b"])
+    target = _target(complete)
+    assert target.eta_hour == 24
+    assert target.eta_minute == 60
+
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    # The date is still known and is kept; only the time is unavailable.
+    eta_date = field(decoded, "etaDate").value
+    assert eta_date is not None
+    assert eta_date.month == 5 and eta_date.day == 27
+    assert field(decoded, "etaTime").value is None
+
+
+def test_eta_midnight_is_valid_not_missing() -> None:
+    target = AisTarget(
+        msg_type=5, mmsi=244009864, eta_month=5, eta_day=27, eta_hour=0, eta_minute=0
+    )
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "etaTime").value == dt.time(0, 0)
+
+
+def test_eta_date_sentinel_does_not_blank_the_time() -> None:
+    target = AisTarget(
+        msg_type=5, mmsi=244009864, eta_month=0, eta_day=0, eta_hour=12, eta_minute=30
+    )
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "etaDate").value is None
+    assert field(decoded, "etaTime").value == dt.time(12, 30)
+
+
+def test_invalid_eta_date_is_not_invented() -> None:
+    target = AisTarget(
+        msg_type=5, mmsi=244009864, eta_month=2, eta_day=30, eta_hour=12, eta_minute=30
+    )
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "etaDate").value is None
+    assert field(decoded, "etaTime").value == dt.time(12, 30)
 
 
 def test_class_b_static_parts_round_trip() -> None:

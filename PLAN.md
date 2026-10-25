@@ -84,6 +84,21 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 - Verified the daemon end-to-end over UDP in dry-run: one AIVDM datagram
   produces the expected five CAN frames.
 
+### 2026-10-25 — ETA sentinel bug
+
+- Found while reviewing `etaTime`: AIS uses `hour=24` and `minute=60` for
+  "not available", and the mapping was turning those into 24:00 and 01:00.
+  `(eta_hour or 0)` also conflated a genuine midnight with a missing value.
+- Fixed: hour/minute are only copied when `0 <= hour <= 23` and
+  `0 <= minute <= 59`; otherwise the N2K TIME field is `None`.
+- The date and time are now independent: a known date with an unknown time
+  keeps the date and writes only the time as unavailable.
+- Also learned that the encoder range-checks TIME against 0..86401 and
+  **rejects** a raw `0xFFFFFFFF`; `value=None` is the correct way to write the
+  N2K "not available" sentinel for a TIME field.
+- Added four tests (36 total): normal ETA, sentinel ETA, midnight, sentinel
+  date, and an invalid calendar date.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
@@ -128,7 +143,7 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 | `src/piais/vedirect.py` | VE.Direct parser and PGN 127508 |
 | `src/piais/service.py` | asyncio UDP daemon, rate limiting, CLI |
 | `src/piais/config.py` | TOML config |
-| `tests/` | 32 tests, including canboat field-order guard |
+| `tests/` | 36 tests, including canboat field-order guard |
 | `os/` | OS recipes, boot config, systemd units |
 | `docs/` | Research, architecture, hardware, software, ADRs |
 

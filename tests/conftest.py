@@ -23,6 +23,9 @@ AIVDM = {
     "type24B": "!AIVDM,1,1,,B,H3`l7@4U1230000@4qpon0102220,0*33",
     "type5a": "!AIVDM,2,1,0,B,53`e;R02Fe3u0C7;?@1@E=B1HE=<Dh0000000016Bhj??5MdN@DSm51DQ0C@,0*4C",
     "type5b": "!AIVDM,2,2,0,B,00000000000,2*27",
+    # Same type 5, but with the ETA sentinels hour=24 and minute=60.
+    "type5_eta_na_a": "!AIVDM,2,1,0,B,53`e;R02Fe3u0C7;?@1@E=B1HE=<Dh0000000016Bhj??5Mpt@DSm51DQ0C@,0*62",
+    "type5_eta_na_b": "!AIVDM,2,2,0,B,00000000000,2*27",
 }
 
 

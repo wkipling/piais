@@ -40,10 +40,8 @@ from .ais import AisTarget
 
 # NMEA 2000 "not available" sentinels, by field width.
 NA_U16 = 0xFFFF
-NA_U32 = 0xFFFFFFFF
 NA_LATLON = 0x7FFFFFFF
 NA_I16 = 0x7FFF
-NA_U8 = 0xFF
 
 KNOT_TO_MPS = 0.514444
 DEG_TO_RAD = math.pi / 180.0
@@ -110,23 +108,37 @@ def _time_stamp(second: int | None) -> NMEA2000Field:
 def _eta_fields(target: AisTarget) -> tuple[NMEA2000Field, NMEA2000Field]:
     """AIS carries month/day/hour/minute only; N2K wants a date and a time.
 
-    The year is inferred: the current year, or next year if that date is more
-    than a month in the past.  AIS does not carry a year, so this is a
-    deliberately conservative guess and is documented in docs/SOFTWARE.md.
+    AIS sentinels are month 0, day 0, hour 24 and minute 60.  The N2K fields
+    are independent, so a known date with an unknown time keeps the date and
+    writes the time as not available.  AIS has no year: the year is inferred
+    as the current year, or next year if the date is more than a month in the
+    past.  Treat the year as a guess and document it as such.
+
+    ``value=None`` (rather than the raw 0xFFFFFFFF) is required here: the
+    encoder range-checks TIME against 0..86401 before packing, so the raw
+    sentinel is rejected.
     """
-    if not target.eta_month or not target.eta_day:
-        return _r("etaDate", NA_U16), _r("etaTime", NA_U32)
-    now = datetime.now(timezone.utc)
-    try:
-        eta = date(now.year, target.eta_month, target.eta_day)
-        if eta < (now - timedelta(days=31)).date():
-            eta = date(now.year + 1, target.eta_month, target.eta_day)
-    except ValueError:
-        return _r("etaDate", NA_U16), _r("etaTime", NA_U32)
-    epoch = date(1970, 1, 1)
-    days = (eta - epoch).days
-    seconds = (target.eta_hour or 0) * 3600 + (target.eta_minute or 0) * 60
-    return _r("etaDate", days), _r("etaTime", seconds)
+    eta_date = _f("etaDate", None)
+    if target.eta_month and target.eta_day:
+        now = datetime.now(timezone.utc)
+        try:
+            eta = date(now.year, target.eta_month, target.eta_day)
+            if eta < (now - timedelta(days=31)).date():
+                eta = date(now.year + 1, target.eta_month, target.eta_day)
+            eta_date = _r("etaDate", (eta - date(1970, 1, 1)).days)
+        except ValueError:
+            # e.g. 30 February: AIS can carry it, N2K cannot represent it.
+            pass
+
+    eta_time = _f("etaTime", None)
+    if (
+        target.eta_hour is not None
+        and target.eta_minute is not None
+        and 0 <= target.eta_hour <= 23
+        and 0 <= target.eta_minute <= 59
+    ):
+        eta_time = _r("etaTime", target.eta_hour * 3600 + target.eta_minute * 60)
+    return eta_date, eta_time
 
 
 class SequenceCounter:

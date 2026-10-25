@@ -101,8 +101,11 @@ documented as such.
 
 **129794 (Class A static).** IMO, callsign, name, ship type, dimensions,
 draught, destination, AIS version, GNSS type, DTE. ETA is month/day/hour/
-minute only: the year is inferred as the current year, or next year if the
-date is more than a month in the past. Treat the year as a guess.
+minute only. AIS sentinels are month 0, day 0, hour 24 and minute 60; those
+become N2K "not available" (`None`), never 24:00 or 01:00. The date and time
+are independent fields, so a known date with an unknown time keeps the date.
+The year is inferred as the current year, or next year if the date is more
+than a month in the past. Treat the year as a guess.
 
 **129809/129810 (Class B static, 24A/24B).** Name in part A; ship type,
 vendor ID, callsign and dimensions in part B. `mothershipUserId` is 0.
@@ -120,6 +123,10 @@ Pole. `pgn.py` maps:
 | rate of turn (signed 16-bit) | `0x7FFF` |
 | date | `0xFFFF` |
 | time | `0xFFFFFFFF` |
+
+For `etaDate`/`etaTime`, pass `value=None` rather than the raw sentinel: the
+encoder range-checks TIME against 0..86401 and rejects `0xFFFFFFFF` as a raw
+value, but `None` writes the correct wire sentinel.
 
 Note: canboat's decoder reports raw `timeStamp` seconds as `None` for values
 that are not named lookup entries, even though the raw bits are correct. The
