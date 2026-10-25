@@ -1,0 +1,38 @@
+# Copy to /etc/piais.toml
+
+[ais]
+# Where AIS-catcher (or any NMEA 0183 AIS source) sends AIVDM sentences.
+# Keep this on loopback; a marina LAN should not be able to inject targets.
+udp_host = "127.0.0.1"
+udp_port = 10110
+
+# Your own MMSI.  0 disables the filter.
+own_mmsi = 0
+
+# Minimum seconds between position reports for the same MMSI.
+# 2 s is conservative; raise it on a busy bus.
+min_update_interval_s = 2.0
+
+# Static data (type 5/24) changes rarely; hold it back longer.
+static_update_interval_s = 60.0
+
+[n2k]
+interface = "socketcan"
+channel = "can0"
+preferred_address = 25
+
+# Set true to log encoded CAN frames instead of transmitting.
+dry_run = false
+
+# Keep these stable so the device keeps the same ISO NAME across reboots.
+model_id = "piais AIS gateway"
+manufacturer_information = "piais"
+
+[vedirect]
+enabled = false
+port = "/dev/ttyUSB0"
+baudrate = 19200
+battery_instance = 0
+
+[log]
+level = "INFO"

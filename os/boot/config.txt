@@ -1,0 +1,20 @@
+# Append to /boot/firmware/config.txt (Raspberry Pi OS) or /boot/config.txt
+# (older images / Alpine).  Do not replace the whole file.
+
+# PiCAN 2: MCP2515 on SPI0, 16 MHz crystal, interrupt GPIO25.
+dtparam=spi=on
+dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=25
+
+# If your PiCAN 2 has a different crystal, change oscillator= to match the
+# marking on the can.  8 MHz and 16 MHz are the common values.
+
+# Optional second controller on a PiCAN 2 Duo.  Check the board silkscreen.
+# dtoverlay=mcp2515-can1,oscillator=16000000,interrupt=24
+
+# Optional: free the PL011 UART on GPIO14/15 for a VE.Direct adapter.
+# This disables Bluetooth.  Only do it if you need a hardware UART; a USB
+# serial adapter for VE.Direct does not require it.
+# dtoverlay=disable-bt
+# enable_uart=1
+
+# NMEA 2000 is 250 kbit/s.  The bitrate is set by can0.service, not here.

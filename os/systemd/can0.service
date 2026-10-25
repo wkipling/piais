@@ -1,0 +1,16 @@
+[Unit]
+Description=Bring up SocketCAN can0 for NMEA 2000 (250 kbit/s)
+Documentation=man:ip-link(8)
+After=network-pre.target
+Before=piais-aisd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/sbin/ip link set can0 up type can bitrate 250000
+ExecStop=/sbin/ip link set can0 down
+# If the controller is not present yet at boot, retry rather than fail hard.
+ExecStartPre=/bin/sh -c 'for i in 1 2 3 4 5; do [ -e /sys/class/net/can0 ] && exit 0; sleep 1; done; exit 1'
+
+[Install]
+WantedBy=multi-user.target

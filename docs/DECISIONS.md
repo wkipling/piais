@@ -1,0 +1,130 @@
+# Architecture decision records
+
+Short records of decisions that were not obvious. Each one says what was
+decided, why, and what it costs.
+
+## ADR-001 — Use AIS-catcher as an external decoder, not a library
+
+**Status:** accepted.
+
+**Decision:** run AIS-catcher as a separate process and consume its NMEA 0183
+output over UDP. Do not link `aiscat` or vendor AIS-catcher's C++ into piais.
+
+**Why:** AIS-catcher is the best-tested open RTL-SDR AIS demodulator, but it
+is GPL-3.0. A separate process keeps the MIT/Apache boundary clean, lets the
+SDR be swapped for a serial receiver, and lets AIS-catcher be restarted or
+updated independently.
+
+**Cost:** an extra process, an extra UDP hop, and a second service to
+supervise. Acceptable on a 512 MB Pi.
+
+**Alternatives:** `aiscat` (GPL linking, very fast), direct SDR DSP in piais
+(too much work, worse sensitivity).
+
+## ADR-002 — pyais for payload decoding
+
+**Status:** accepted.
+
+**Decision:** use `pyais` (MIT).
+
+**Why:** pure Python, no build step, supports all message types and multipart,
+fast enough for a single station. MIT matches this repository.
+
+**Cost:** slower than `aiscat` or libais; irrelevant at ~50 msg/s.
+
+## ADR-003 — canboat + nmea2000 for N2K encoding and address claim
+
+**Status:** accepted.
+
+**Decision:** encode with `nmea2000`, which wraps canboat's Rust PGN database,
+and use its `N2KDevice` for ISO 11783-5 address claiming and fast packets.
+
+**Why:** canboat is the de-facto open N2K definition and is actively
+maintained. `nmea2000` publishes ARM64 wheels for the Pi Zero 2 W (glibc and
+musl), so deployment does not need a Rust toolchain. Address claiming is
+non-trivial; reusing a tested implementation is safer than writing one.
+
+**Cost:** a dependency on canboat's field definitions. Mitigated by the
+field-order test and a pinned major version.
+
+## ADR-004 — piais owns rate limiting and the PGN subset
+
+**Status:** accepted.
+
+**Decision:** do not forward every AIS report. Rate-limit per MMSI and per
+report class; do not forward own ship.
+
+**Why:** a busy harbour produces duplicates from both channels and can
+saturate a 250 kbit/s bus with five-frame PGNs. An MFD target list also does
+not need 10 Hz updates.
+
+**Cost:** a target may appear up to 2 s late. Configurable.
+
+## ADR-005 — Do not depend on AIS-catcher's built-in N2K output
+
+**Status:** accepted, with a bench exception.
+
+**Decision:** AIS-catcher's experimental `-I can0` is a Phase 2 validation
+tool, not the production path.
+
+**Why:** upstream explicitly says it is experimental, not NMEA certified and
+"not intended for connecting to a NMEA2000 network on a boat". It has no
+VE.Direct or sensor inputs, no piais rate limiting, and its field mapping is
+not covered by this repository's tests. piais exists to own those concerns.
+
+**Cost:** one more process than the absolute minimum. If AIS is the only
+requirement and `-I` proves reliable, Phase 2 may show that piais is
+unnecessary — that is a valid outcome and should be recorded here.
+
+## ADR-006 — Raspberry Pi OS + overlayfs first, Alpine diskless later
+
+**Status:** accepted.
+
+**Decision:** the default recipe is Raspberry Pi OS Lite 64-bit with the
+overlay file system enabled. Alpine diskless is documented as the fully-RAM
+alternative.
+
+**Why:** overlayfs gives the power-cut protection (no root writes) while
+keeping systemd, apt, AIS-catcher's installer and the nmea2000 glibc wheels
+working. Alpine needs OpenRC units and a musl build of AIS-catcher, which is
+a project in itself.
+
+**Cost:** the OS is still read from SD at boot, and the overlay uses RAM. That
+is acceptable; the SD card is not written.
+
+## ADR-007 — No persistent storage on the Pi
+
+**Status:** accepted.
+
+**Decision:** no database, no log files, no cache on the root filesystem.
+
+**Why:** the primary requirement is surviving power cuts without SD-card
+corruption. Persistent capture, if needed, goes to a separate writable device.
+
+**Cost:** logs are lost on reboot and AIS history is not retained. AIS is a
+live picture; this is acceptable.
+
+## ADR-008 — LoRa carries summaries, not AIS
+
+**Status:** accepted.
+
+**Decision:** any LoRa output is a low-rate digest or telemetry, never a
+transparent relay of NMEA.
+
+**Why:** raw AIS at a busy station exceeds LoRa's practical throughput by an
+order of magnitude. See `docs/RESEARCH.md` §2.6.
+
+**Cost:** a remote receiver sees a filtered picture, not every message.
+
+## ADR-009 — VE.Direct maps only to PGN 127508 for now
+
+**Status:** accepted.
+
+**Decision:** publish battery voltage, current and temperature. Do not invent
+PGNs for solar yield, MPPT state or error codes.
+
+**Why:** 127508 is standard and well understood. Solar-specific data has no
+clean standard PGN; a proprietary mapping should be a deliberate, documented
+choice, not an accident.
+
+**Cost:** less telemetry on the bus in v1.

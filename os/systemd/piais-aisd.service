@@ -1,0 +1,38 @@
+[Unit]
+Description=piais AIS to NMEA 2000 bridge
+Documentation=https://github.com/wkipling/piais
+After=can0.service network-online.target
+Requires=can0.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=piais
+Group=piais
+ExecStart=/opt/piais/venv/bin/piais-aisd --config /etc/piais.toml
+
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=0
+
+# SocketCAN needs CAP_NET_RAW; configuring can0 is done by can0.service.
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=yes
+
+# The daemon writes nothing to disk.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_CAN AF_INET AF_NETLINK AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
