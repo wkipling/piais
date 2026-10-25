@@ -277,3 +277,22 @@ def test_auxiliary_craft_mothership_mmsi_is_carried() -> None:
     assert message is not None
     _, decoded = round_trip(message)
     assert field(decoded, "mothershipUserId").value == 244123456
+
+
+@pytest.mark.parametrize(
+    ("aid_type", "expected"),
+    [
+        (0, "Default: Type of AtoN not specified"),
+        (5, "Fixed light: without sectors"),
+        (25, "Floating AtoN: starboard hand mark"),
+    ],
+)
+def test_aton_type_matches_canboat(aid_type: int, expected: str) -> None:
+    """AIS aid_type 0..31 is a 1:1 match for canboat's atonType."""
+    target = AisTarget(
+        msg_type=21, mmsi=992441234, lat=51.3, lon=6.7, aid_type=aid_type, name="BUOY"
+    )
+    message = to_nmea2000(target)
+    assert message is not None
+    _, decoded = round_trip(message)
+    assert field(decoded, "atonType").value == expected

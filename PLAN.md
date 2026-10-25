@@ -124,10 +124,10 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 - Refactored `pgn.py` around `_number` (scaled; `None` = not available) and
   `_code` (exact bits), with shared identity/position/motion/dimension
   helpers. The LOOKUP/NUMBER distinction is now explicit at every call site.
-- 55 tests (19 new): absent numerics, zero and partial dimensions, unitType,
-  gnssType, 24B mothership, negative battery current, 24A/24B rate limiting,
-  tag blocks, invalid headings, failed-send logging, and the bus-path SI
-  encoder.
+- 58 tests (22 new): absent numerics, zero and partial dimensions, unitType,
+  gnssType, AtoN type mapping, 24B mothership, negative battery current,
+  24A/24B rate limiting, tag blocks, invalid headings, failed-send logging,
+  and the bus-path SI encoder.
 - Found while refactoring: `PythonCanAsyncIOClient` creates its encoder with
   the library default `units="native"` while the dry-run path used SI. The
   wire bytes are identical for the AIS PGNs today, but the bus path now reuses
@@ -177,7 +177,7 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 | `src/piais/vedirect.py` | VE.Direct parser and PGN 127508 |
 | `src/piais/service.py` | asyncio UDP daemon, rate limiting, CLI |
 | `src/piais/config.py` | TOML config |
-| `tests/` | 55 tests, including canboat field-order guard |
+| `tests/` | 58 tests, including canboat field-order guard |
 | `os/` | OS recipes, boot config, systemd units |
 | `docs/` | Research, architecture, hardware, software, ADRs |
 
