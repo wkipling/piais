@@ -212,3 +212,43 @@ possible.
 - **ADR-011**: publish measured values only; no derived PV current, no
   remaining capacity without a configured capacity, no guessed temperature
   source.
+
+## 8. Powering the Pi from the N2K bus
+
+Recorded because it is the chosen arrangement, not because it is endorsed.
+NMEA 2000 provides a 12 V pair for the bus, not a general-purpose load bus:
+the standard expects a single power insertion point and a defined backbone
+current budget. Adding a Raspberry Pi and an SDR is outside that intent and
+depends entirely on the installed backbone and its supply headroom.
+
+Working figures, all approximate and **unmeasured** on this build:
+
+| Load | Typical |
+| --- | --- |
+| Zero 2 W, Wi-Fi on, light CPU | 0.8–1.2 W |
+| Zero 2 W, Wi-Fi off | 0.6–0.9 W |
+| RTL-SDR dongle | 1.0–1.7 W |
+| PiCAN 2 (MCP2515) | ~0.3 W |
+| 12 V → 5 V buck, 85 % efficiency | +15 % of the above |
+
+So roughly 3–4 W, or 0.25–0.35 A at 12 V, with higher peaks when the radio
+transmits or the dongle enumerates. Confirm the backbone supply and the
+voltage at the Pi's drop under load; a long backbone with many drops sags.
+
+Practical rules:
+
+1. **One insertion point.** Do not add a second 12 V feed at the Pi's drop
+   unless the backbone is designed for it. Feed the buck from the existing
+   power pair with a fuse, and keep the drop short.
+2. **The SDR switch must not switch the Pi.** `power_off_command` may cut the
+   dongle's USB port only. Cutting the Pi's 5 V rail from software is not a
+   supported configuration and would take the control page with it.
+3. **Expect brownouts.** Engine cranking sags the whole bus. Use a buck with
+   under-voltage lockout and enough bulk capacitance to ride out the dip, and
+   keep the hardware watchdog enabled. The RAM-resident OS protects the SD
+   card from an abrupt loss; it does not keep the current boot alive.
+4. **Bus off means Pi off.** The control page, Wi-Fi window and SDR switch are
+   only reachable while the bus is powered. A device that needs to be
+   reachable with the instruments off needs a separate supply.
+5. **Wi-Fi is a real load.** Turning the radio off saves roughly 0.2–0.4 W at
+   the 5 V rail. That is the point of the watchdog, beyond the security one.

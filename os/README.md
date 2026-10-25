@@ -40,6 +40,11 @@ processes do not have to live on the same host.
 | `systemd/can0.service` | Bring `can0` up at 250 kbit/s |
 | `systemd/piais-aisd.service` | Run the daemon with minimal privileges |
 
+The daemon writes nothing to the persistent filesystem. The control-page
+token and the Wi-Fi marker live in `/run/piais` (tmpfs, created by
+`RuntimeDirectory=`), and the log ring is memory only. See
+[`../docs/CONTROL.md`](../docs/CONTROL.md).
+
 ## Watchdog
 
 A read-only root does not recover a hung process. Enable the hardware

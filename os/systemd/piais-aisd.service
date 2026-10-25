@@ -2,8 +2,9 @@
 Description=piais AIS to NMEA 2000 bridge
 Documentation=https://github.com/wkipling/piais
 After=can0.service network-online.target
-Requires=can0.service
-Wants=network-online.target
+# Wants, not Requires: if CAN did not come up, the control page still starts
+# and shows the bus error instead of the whole service disappearing.
+Wants=can0.service network-online.target
 
 [Service]
 Type=simple
@@ -20,17 +21,26 @@ AmbientCapabilities=CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_RAW
 NoNewPrivileges=yes
 
-# The daemon writes nothing to disk.
+# The daemon writes nothing to the persistent filesystem.  The control token
+# and the Wi-Fi marker live here, on tmpfs.  Mode 0700: the token is a
+# credential for the local control page.
+RuntimeDirectory=piais
+RuntimeDirectoryMode=0700
+
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
-RestrictAddressFamilies=AF_CAN AF_INET AF_NETLINK AF_UNIX
+# AF_INET6 is needed for a ::1 bind; AF_UNIX for the journal and name service.
+RestrictAddressFamilies=AF_CAN AF_INET AF_INET6 AF_NETLINK AF_UNIX
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+
+# Deliberately no PrivateDevices=yes: it hides /dev/ttyUSB* (VE.Direct and
+# USB-serial adapters) and the USB nodes uhubctl needs for power switching.
+# If you do not use either, adding PrivateDevices=yes is a good hardening step.
 
 Environment=PYTHONUNBUFFERED=1
 

@@ -34,5 +34,64 @@ port = "/dev/ttyUSB0"
 baudrate = 19200
 battery_instance = 0
 
+[web]
+# The control page starts with the daemon.  It is loopback-only and
+# token-protected until you change host/password: the one-time URL is printed
+# in the boot log (journalctl -u piais-aisd).  See docs/CONTROL.md.
+enabled = true
+
+# "0.0.0.0" makes it reachable from a phone or laptop on the boat network.
+# That requires a password; the daemon refuses to start otherwise.
+host = "127.0.0.1"
+port = 8080
+
+username = "piais"
+password = ""
+
+# Lines kept in RAM for the /debug page.  Nothing is written to disk.
+log_lines = 500
+
+[sdr]
+# How to stop and start the AIS decoder.  Commands are argv arrays, run
+# without a shell.  Empty means "not configured": the page will say so rather
+# than claim success.
+#
+# Stopping the decoder saves CPU, not the dongle's idle current.  Real power
+# cut-off needs a switchable USB port (uhubctl) or a GPIO-driven load switch.
+# Commands run as the service user; if they need root, use `sudo -n` with a
+# sudoers rule (see docs/CONTROL.md).
+
+# off_command = ["/usr/bin/systemctl", "stop", "ais-catcher.service"]
+# on_command  = ["/usr/bin/systemctl", "start", "ais-catcher.service"]
+
+# True USB power switching, if the hub or a GPIO helper supports it:
+# power_off_command = ["/usr/bin/uhubctl", "-l", "1-1", "-p", "2", "-a", "off"]
+# power_on_command  = ["/usr/bin/uhubctl", "-l", "1-1", "-p", "2", "-a", "on"]
+
+# restart_command = ["/usr/bin/systemctl", "restart", "ais-catcher.service"]
+
+timeout_s = 15.0
+on_delay_s = 2.0
+off_delay_s = 0.5
+
+[wifi]
+# Turn the radio off after a period with no client that arrived over Wi-Fi.
+# Off by default: it only makes sense once [web] is reachable on the LAN and
+# something can turn the radio back on (a reopen interval, GPIO, or N2K).
+# See docs/CONTROL.md for the exact rules.
+enabled = false
+off_after_s = 60.0
+
+# 0 = stay off.  >0 = re-enable the radio this often to allow reconnection;
+# if nobody connects within off_after_s it goes off again.
+reopen_interval_s = 0.0
+
+# Raspberry Pi OS (NetworkManager) examples.  These need privilege; see
+# docs/CONTROL.md.
+# off_command = ["/usr/bin/nmcli", "radio", "wifi", "off"]
+# on_command  = ["/usr/bin/nmcli", "radio", "wifi", "on"]
+
+timeout_s = 15.0
+
 [log]
 level = "INFO"

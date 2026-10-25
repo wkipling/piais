@@ -19,6 +19,18 @@ from .config import Config, load_config
 from .n2k import N2KSender
 from .pgn import SequenceCounter, to_nmea2000
 from .vedirect import VeDirectParser, to_nmea2000 as vedirect_to_nmea2000
+from .web import (
+    RingLogHandler,
+    SdrController,
+    TokenStore,
+    WebServer,
+    WifiController,
+    default_token_path,
+    default_wifi_state_path,
+    install_log_capture,
+    is_loopback,
+    remove_log_capture,
+)
 
 log = logging.getLogger("piais")
 
@@ -44,6 +56,8 @@ class AisService:
         sender: N2KSender | None = None,
         *,
         bench: bool = False,
+        sdr: SdrController | None = None,
+        wifi: WifiController | None = None,
     ) -> None:
         self.config = config
         self.sender = sender or N2KSender(config.n2k)
@@ -56,6 +70,17 @@ class AisService:
         #: Bench mode encodes synchronously instead of scheduling bus sends.
         self.bench = bench
 
+        self.sdr = sdr or SdrController(config.sdr)
+        self.wifi = wifi or WifiController(
+            config.wifi, state_path=default_wifi_state_path()
+        )
+        self._web: WebServer | None = None
+        self._log_handler: RingLogHandler | None = None
+        self.started = time.monotonic()
+        self.last_datagram: float | None = None
+        #: Set when the bus could not be opened.  The control page stays up.
+        self.n2k_error: str | None = None
+
         self.sentences = 0
         self.decoded = 0
         self.unsupported = 0
@@ -64,6 +89,7 @@ class AisService:
     # ---- message path -------------------------------------------------
 
     def feed_datagram(self, data: bytes) -> None:
+        self.last_datagram = time.monotonic()
         for raw in data.replace(b"\r", b"\n").split(b"\n"):
             if len(raw) > 10:
                 self.feed_sentence(raw)
@@ -155,10 +181,68 @@ class AisService:
             # garbage-collected, which hides encoder and bus failures.
             log.error("N2K send failed: %s", error, exc_info=error)
 
+    def status(self) -> dict[str, object]:
+        """Snapshot for the control page.  Cheap and side-effect free."""
+        now = time.monotonic()
+        age = None if self.last_datagram is None else round(now - self.last_datagram, 1)
+        return {
+            "mode": "bridge",
+            "running": self.n2k_error is None,
+            "error": self.n2k_error,
+            "uptime_s": int(now - self.started),
+            "ais": {
+                "udp": f"{self.config.ais.udp_host}:{self.config.ais.udp_port}",
+                "sentences": self.sentences,
+                "decoded": self.decoded,
+                "suppressed": self.suppressed,
+                "unsupported": self.unsupported,
+                "last_datagram_age_s": age,
+            },
+            "n2k": {
+                "interface": self.config.n2k.interface,
+                "channel": self.config.n2k.channel,
+                "dry_run": self.config.n2k.dry_run,
+            },
+            "vedirect": {
+                "enabled": self.config.vedirect.enabled,
+                "port": self.config.vedirect.port,
+            },
+        }
+
     # ---- lifecycle ----------------------------------------------------
 
     async def run(self) -> None:
-        await self.sender.start()
+        """Serve the control page, then run the bridge.
+
+        The page is started first and survives a bus failure: an appliance
+        whose CAN interface did not come up is exactly when you want the
+        status page, not a process that exits and takes the page with it.
+        """
+        self._web = await self._start_web()
+        await self.wifi.start()
+        try:
+            try:
+                await self.sender.start()
+            except Exception as exc:
+                self.n2k_error = f"{type(exc).__name__}: {exc}"
+                log.exception("N2K start failed; the control page stays up")
+            if self.n2k_error is None:
+                await self._pipeline()
+            else:
+                await self._stopping.wait()
+        finally:
+            await self._stop_web()
+            await self.wifi.stop()
+            await self.sender.close()
+            log.info(
+                "stopped: sentences=%d decoded=%d suppressed=%d unsupported=%d",
+                self.sentences,
+                self.decoded,
+                self.suppressed,
+                self.unsupported,
+            )
+
+    async def _pipeline(self) -> None:
         loop = asyncio.get_running_loop()
         transport, _ = await loop.create_datagram_endpoint(
             lambda: AisProtocol(self),
@@ -189,14 +273,40 @@ class AisService:
             await asyncio.gather(*helpers, return_exceptions=True)
             if self._tasks:
                 await asyncio.gather(*self._tasks, return_exceptions=True)
-            await self.sender.close()
+
+    async def _start_web(self) -> WebServer | None:
+        if not self.config.web.enabled:
+            return None
+        self._log_handler = install_log_capture(
+            self.config.web.log_lines, logging.getLogger().level or self.config.log.level
+        )
+        server = WebServer(
+            self.config.web,
+            tokens=TokenStore(default_token_path()),
+            sdr=self.sdr,
+            wifi=self.wifi,
+            status=self.status,
+            logs=self._log_handler,
+        )
+        try:
+            await server.start()
+        except Exception:
+            remove_log_capture(self._log_handler)
+            self._log_handler = None
+            raise
+        if is_loopback(self.config.web.host) and not self.config.web.password:
             log.info(
-                "stopped: sentences=%d decoded=%d suppressed=%d unsupported=%d",
-                self.sentences,
-                self.decoded,
-                self.suppressed,
-                self.unsupported,
+                "the control page is loopback-only; reach it through the "
+                "one-time link above or over SSH"
             )
+        return server
+
+    async def _stop_web(self) -> None:
+        server, self._web = self._web, None
+        if server is not None:
+            await server.close()
+        remove_log_capture(self._log_handler)
+        self._log_handler = None
 
     def stop(self) -> None:
         self._stopping.set()
@@ -290,6 +400,46 @@ def _encode_sentences(sentences: Iterable[str], config: Config) -> int:
     return 0
 
 
+async def _run_web_only(config: Config) -> None:
+    """Serve the control page without touching CAN or the AIS UDP port."""
+    sdr = SdrController(config.sdr)
+    wifi = WifiController(config.wifi, state_path=default_wifi_state_path())
+    handler = install_log_capture(
+        config.web.log_lines, logging.getLogger().level or config.log.level
+    )
+    server = WebServer(
+        config.web,
+        tokens=TokenStore(default_token_path()),
+        sdr=sdr,
+        wifi=wifi,
+        status=lambda: {
+            "mode": "web-only",
+            "running": False,
+            "error": "AIS/N2K pipeline not started (--web-only)",
+        },
+        logs=handler,
+    )
+    try:
+        await wifi.start()
+        await server.start()
+        if is_loopback(config.web.host):
+            log.info("web-only mode is bound to loopback")
+        await asyncio.Event().wait()
+    finally:
+        await server.close()
+        await wifi.stop()
+        remove_log_capture(handler)
+
+
+def _rotate_token() -> int:
+    path = default_token_path()
+    token = TokenStore(path).rotate()
+    print(f"new control token: {token}")
+    print(f"token file: {path}")
+    print("restart piais-aisd for a running daemon to use the new token")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="piais-aisd")
     parser.add_argument("--config", default=None, help="path to piais.toml")
@@ -301,15 +451,54 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="decode AIVDM sentence(s) and exit (bench mode)",
     )
+    parser.add_argument(
+        "--web",
+        action="store_true",
+        help="enable the control page even when [web] enabled is false",
+    )
+    parser.add_argument(
+        "--open-web",
+        action="store_true",
+        help="enable the control page and print its one-time token link",
+    )
+    parser.add_argument(
+        "--web-only",
+        action="store_true",
+        help="serve the control page without starting the AIS/N2K pipeline",
+    )
+    parser.add_argument(
+        "--rotate-token",
+        action="store_true",
+        help="rotate the control page token and exit",
+    )
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
     if args.dry_run:
         config.n2k.dry_run = True
+    if args.web or args.open_web or args.web_only:
+        config.web.enabled = True
     _setup_logging(args.log_level or config.log.level)
+
+    if args.rotate_token:
+        return _rotate_token()
 
     if args.sentence:
         return _encode_sentences(args.sentence, config)
+
+    if config.wifi.enabled and is_loopback(config.web.host):
+        log.warning(
+            "[wifi] is enabled but the control page is loopback-only, so no "
+            "Wi-Fi client can reach it; the radio comes back only on a "
+            "reopen interval or a reboot"
+        )
+
+    if args.web_only:
+        try:
+            asyncio.run(_run_web_only(config))
+        except KeyboardInterrupt:
+            pass
+        return 0
 
     service = AisService(config)
     try:

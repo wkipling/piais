@@ -104,7 +104,7 @@ Run the daemon against a UDP feed:
 Tests:
 
 ```bash
-.venv/bin/python -m pytest -q      # 58 passed
+.venv/bin/python -m pytest -q      # 119 passed
 ```
 
 ## On the boat
@@ -133,6 +133,41 @@ preferred_address = 25
 dry_run = false
 ```
 
+## Control page, SDR power and Wi-Fi
+
+The daemon can serve a small page with status, controls and a debug log. It
+starts before the bus and survives a CAN failure, so the interface you need
+when something is broken is the one that is still up. It is loopback-only and
+token-protected by default; set `host` and a password to reach it from the
+boat network.
+
+```toml
+[web]
+enabled = true
+host = "0.0.0.0"      # requires a password
+password = "change me"
+
+[sdr]
+# Stop/start the decoder. This saves CPU, not the dongle's idle current.
+off_command = ["/usr/bin/systemctl", "stop", "ais-catcher.service"]
+on_command  = ["/usr/bin/systemctl", "start", "ais-catcher.service"]
+# True power cut needs a switchable USB port or a GPIO load switch:
+# power_off_command = ["/usr/bin/uhubctl", "-l", "1-1", "-p", "2", "-a", "off"]
+
+[wifi]
+# Radio off after 60 s with no client that arrived over Wi-Fi.
+enabled = true
+off_after_s = 60.0
+```
+
+Commands are argv arrays, run without a shell. Empty means "not configured",
+and the page says so instead of reporting a fake success. The Wi-Fi watchdog
+classifies clients by the local address of the connection: loopback and
+Ethernet requests do not keep the radio up. The page never auto-refreshes,
+because a polling page would defeat the watchdog.
+
+Full rules, privilege setup and the HTTP API: [`docs/CONTROL.md`](docs/CONTROL.md).
+
 ## What is implemented
 
 | Area | State |
@@ -146,6 +181,7 @@ dry_run = false
 | Victron shunt/MPPT PGNs 127506/127507/127751 | ⬜ feasibility documented |
 | Victron DC-DC over BLE | ⬜ feasibility documented |
 | Read-only OS recipes, systemd units | ✅ documented, ⬜ not booted |
+| Control page, SDR stop/start/power, Wi-Fi watchdog | ✅ tested, ⬜ not on hardware |
 | Sensors, BLE NMEA output, LoRa | ⬜ design only |
 | AIS types 4, 9, 27 | ⬜ not mapped |
 
@@ -158,12 +194,13 @@ dry_run = false
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Data flow, failure modes, read-only constraints |
 | [`docs/HARDWARE.md`](docs/HARDWARE.md) | PiCAN 2, termination, isolation, power, RF |
 | [`docs/SOFTWARE.md`](docs/SOFTWARE.md) | PGN mapping, unit traps, extensions |
+| [`docs/CONTROL.md`](docs/CONTROL.md) | Control page, SDR power, Wi-Fi watchdog, privileges |
 | [`docs/ELECTRICAL.md`](docs/ELECTRICAL.md) | Victron shunt/MPPT/DC-DC feasibility, candidate PGNs |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture decision records |
 | [`docs/REFERENCES.md`](docs/REFERENCES.md) | Links and datasheets |
 | [`os/`](os/) | RAM/read-only OS recipes and systemd units |
 | `src/piais/` | The daemon and protocol code |
-| `tests/` | 58 tests, including a canboat field-order guard |
+| `tests/` | 119 tests, including a canboat field-order guard |
 | `scripts/replay_udp.py` | Replay AIVDM over UDP without a radio |
 
 ## Hardware warnings

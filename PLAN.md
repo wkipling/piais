@@ -161,6 +161,41 @@ box, on a real N2K bus, after a week of unattended power-cycling.
   notes and package description to state the baseline instead of implying the
   Zero 2 W is the only platform.
 
+### 2026-10-25 — Control page, SDR power, Wi-Fi watchdog
+
+- Added `src/piais/web.py`: a stdlib-only HTTP control page with status,
+  debug log, token rotation, SDR stop/start/restart and Wi-Fi on/off. No new
+  dependencies; the package still installs four libraries.
+- Access model: loopback binds use a 32-hex token printed in the boot log and
+  stored in `/run/piais/token` (0600, tmpfs). A non-loopback bind requires
+  HTTP Basic auth and a password, enforced in config validation.
+- SDR control distinguishes two capabilities: stopping the decoder (saves CPU)
+  and cutting USB power (saves the dongle's current). `uhubctl`/GPIO switches
+  are argv arrays. An unconfigured action returns an explicit error; a power
+  cut without `power_on_command` cannot be undone from software and says so.
+- Wi-Fi watchdog turns the radio off after `off_after_s` with no client that
+  arrived over Wi-Fi. Classification uses the connection's local address
+  against `/sys/class/net/*/wireless`. Loopback and Ethernet do not extend the
+  window; an unclassifiable request does (conservative). Optional reopen
+  interval. Failed off commands back off for 30 s.
+- The page is started before the bus and now survives an N2K failure: if
+  address claiming or `can0` fails, the process stays up and shows the error.
+- The control page never auto-refreshes. A polling page would keep the Wi-Fi
+  watchdog from ever firing; this is asserted in the tests.
+- Found while updating the unit: `PrivateDevices=yes` hides `/dev/ttyUSB*`
+  (VE.Direct) and the USB nodes `uhubctl` needs, and `Requires=can0.service`
+  meant a missing CAN interface took the control page down with it. Changed to
+  `Wants=` and removed the device sandbox, with the reason recorded in place.
+- Found while checking the plotter question: canboat 9.0.0 does define
+  127501/127502 (switch bank status/control), and `N2KDevice` can receive via
+  `set_receive_callback`. Whether an ECHOMAP renders a generic third-party
+  bank is **unverified**; the bench test is in `docs/CONTROL.md` §7.
+- 119 tests (61 new): auth, token rotation and grace, cross-site refusal,
+  real HTTP round trips, SDR ordering/failure states, Wi-Fi deadline and
+  classification, config validation.
+- Not run on a Pi, a PiCAN 2, a dongle or a switchable hub. The power figures
+  and `uhubctl` behaviour are hardware claims that remain untested here.
+
 ## 6. Next actions
 
 1. **Bench Phase 2 (cheapest, highest information):** build/install
@@ -184,6 +219,11 @@ box, on a real N2K bus, after a week of unattended power-cycling.
    [`docs/ELECTRICAL.md`](docs/ELECTRICAL.md).
 7. **BLE E3:** on a laptop or the Pi, run `victron-ble read` for the DC-DC
    charger and confirm which fields the model exposes before integrating.
+8. **Control plane on hardware:** confirm the one-time token link, then check
+   whether the hub can really switch one port (`uhubctl -l ... -p ...`). If it
+   cannot, the page must keep saying "no USB power switch". Test the Wi-Fi
+   watchdog with the chosen privilege route (`sudo -n` or polkit) and confirm
+   the radio comes back on a reopen interval.
 
 ## 7. Open questions and risks
 
@@ -211,9 +251,11 @@ box, on a real N2K bus, after a week of unattended power-cycling.
 | `src/piais/n2k.py` | SocketCAN sender / dry-run frame logger |
 | `src/piais/vedirect.py` | VE.Direct parser and PGN 127508 |
 | `src/piais/service.py` | asyncio UDP daemon, rate limiting, CLI |
+| `src/piais/web.py` | control page, SDR/Wi-Fi controllers, token store |
 | `src/piais/config.py` | TOML config |
-| `tests/` | 58 tests, including canboat field-order guard |
+| `tests/` | 119 tests, including canboat field-order guard |
 | `os/` | OS recipes, boot config, systemd units |
+| `docs/CONTROL.md` | control page, SDR power, Wi-Fi watchdog, privileges |
 | `docs/ELECTRICAL.md` | Victron shunt/MPPT/DC-DC feasibility and candidate PGNs |
 | `docs/` | Research, architecture, hardware, software, ADRs |
 

@@ -14,7 +14,8 @@ UDP AIVDM ──► SentenceAssembler ──► pyais ──► AisTarget ──
 | `pgn.py` | AIS type → PGN, exact canboat field order, SI units, N2K sentinels |
 | `n2k.py` | `N2KDevice` lifecycle, address claim, dry-run frame logging |
 | `vedirect.py` | VE.Direct byte state machine, PGN 127508 |
-| `service.py` | asyncio UDP daemon, rate limit, own-ship filter, stats, CLI |
+| `service.py` | asyncio UDP daemon, rate limit, own-ship filter, stats, CLI, control-page lifecycle |
+| `web.py` | stdlib control page, SDR/Wi-Fi controllers, token store, log ring |
 | `config.py` | TOML loading with unknown-key rejection |
 
 ## 2. The two traps that matter
@@ -213,6 +214,9 @@ For an output (BLE, LoRa), keep it downstream of the same normalised
   catches unit and bit-layout errors that a plain "encode succeeds" test does
   not.
 - **Service**: rate limiting, own-MMSI, multiple sentences per datagram.
+- **Control plane**: token and Basic auth, cross-site POST refusal, SDR
+  stop/start ordering and failure reporting, Wi-Fi deadline classification
+  and reopen, real HTTP round trips on an ephemeral port.
 - **Hardware**: deliberately absent from CI; see `PLAN.md` Phase 2–5.
 
 Run:
@@ -221,3 +225,20 @@ Run:
 python -m pytest -q
 python -m piais --dry-run --sentence '<AIVDM>'
 ```
+
+## 9. Control plane
+
+The daemon can serve a status page, stop or power down the receiver, and turn
+the Wi-Fi radio off when nobody is connected. It is stdlib-only and off by
+default except for a loopback bind.
+
+Two invariants matter when changing it:
+
+1. **An unconfigured capability is not success.** Empty command arrays are
+   reported as "cannot", never as a completed action. A failed power cut after
+   a successful decoder stop leaves the state `stopped` with an explicit error.
+2. **The page must not poll itself.** The Wi-Fi watchdog exists to turn the
+   radio off; a meta-refresh or JavaScript timer would keep it on forever.
+
+See [`CONTROL.md`](CONTROL.md) for the access model, the exact Wi-Fi rules,
+privilege setup and the HTTP API.
